@@ -21,7 +21,7 @@ CONFIG = {
     "scale": 2,
     
     # Rank_assets_Config
-    "rank_img_root": r"C:\Users\mc158\Desktop\DACRecord\assets\rank",
+    "rank_img_root": r".\assets\rank",
     "rank_img_scale": 0.8,
     "rank_mapping": {
         "ROOKIE": "rookie.png",
@@ -230,7 +230,7 @@ def main():
     # save directory
     save_dir = select_save_dir()
     # save
-    save_path = os.path.join(save_dir, "DAC成绩表_内置字体.png")
+    save_path = os.path.join(save_dir, "DAC_Record.png")
     try:
         table_img.save(save_path, "PNG")
         messagebox.showinfo("成功", f"图片已保存至：{save_path}")
@@ -240,3 +240,4 @@ def main():
 if __name__ == "__main__":
     print("若提示模块不存在，请执行：pip install -r requirements.txt")
     main()
+
