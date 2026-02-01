@@ -1,0 +1,2 @@
+pandas>=1.5.0,<3.0.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
+Pillow>=9.0.0,<11.0.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
