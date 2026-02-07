@@ -1,6 +1,7 @@
 # DACreator
 为头文字D：激斗设计的python程序，用于利用整理好的csv文件快速导出成图片。
-B站演示视频<https://www.bilibili.com/video/BV13SFWzTEnv/?spm_id_from=333.1387.homepage.video_card.click&vd_source=f99b9b83b208ea975bc4d82ee4ca9e7d>
+
+B站演示视频<https://www.bilibili.com/video/BV13SFWzTEnv/>
 # 快速开始
 ## 环境要求
 - Python 3.7 +
