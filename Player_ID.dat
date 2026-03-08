@@ -1,5 +1,7 @@
-ID = 你的名字
+ID = 你的ID
 TEAM = 你的车队名
 STORE = 你的店铺名
 LOCALE = 店铺所在地区
 CITY = 店铺所在城市
+SEASON = 5
+ROUND = 4

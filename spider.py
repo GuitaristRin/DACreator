@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 CONFIG = {
     "base_web_url": "https://arcadezone.cn/ranking#timetrial",
     "api_url": "https://arcadezone.cn/ranking/timetrial",
-    "season": 5,
+    "season": 5,  # 默认值，会被配置文件覆盖
     "headers": {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         "Content-Type": "application/json",
@@ -125,25 +125,56 @@ CONFIG = {
 
 class ArcadeZoneCrawler:
     def __init__(self):
-        self.headers = CONFIG["headers"]
+        self.headers = CONFIG["headers"].copy()
         self.api_url = CONFIG["api_url"]
         self.base_web_url = CONFIG["base_web_url"]
-        self.season = CONFIG["season"]
+        # 从配置文件加载赛季
+        self.season = self._load_season()
         self.target_username = self._load_target_username()
-        self.standard_times = self._load_standard_times()  # 加载等级标准库
+        self.standard_times = self._load_standard_times()
         self.session = requests.Session()
         self._get_csrf_token()
 
-    def _load_target_username(self) -> str:
+    def _load_season(self) -> int:
+        """从配置文件加载赛季"""
+        default_season = CONFIG["season"]
+        
         try:
             with open(CONFIG["player_id_path"], "r", encoding="utf-8") as f:
-                line = f.readline().strip()
+                lines = f.readlines()
+                
+            for line in lines:
+                line = line.strip()
+                if line.startswith("SEASON = "):
+                    try:
+                        season = int(line.split("=")[1].strip())
+                        print(f"✅ 加载赛季配置：第 {season} 赛季")
+                        return season
+                    except:
+                        pass
+            
+            print(f"⚠️ 配置文件中未找到赛季设置，使用默认值：第 {default_season} 赛季")
+            return default_season
+            
+        except Exception as e:
+            print(f"⚠️ 读取配置文件失败，使用默认赛季：第 {default_season} 赛季")
+            return default_season
+
+    def _load_target_username(self) -> str:
+        """从配置文件加载目标用户名"""
+        try:
+            with open(CONFIG["player_id_path"], "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                
+            for line in lines:
+                line = line.strip()
                 if line.startswith("ID = "):
-                    username = line.split("ID = ")[1].strip()
+                    username = line.split("=")[1].strip()
                     print(f"✅ 成功加载目标用户：{username}")
                     return username
-                else:
-                    raise ValueError("配置文件格式错误，正确格式：ID = 用户名")
+                    
+            raise ValueError("配置文件中未找到 ID 行")
+            
         except FileNotFoundError:
             raise Exception(f"❌ 未找到配置文件：{CONFIG['player_id_path']}")
         except Exception as e:
