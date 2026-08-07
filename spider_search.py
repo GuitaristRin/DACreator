@@ -1,14 +1,16 @@
 import json
+import unicodedata
 import pandas as pd
 from typing import List, Dict, Optional
 
 # 复用原 spider 的配置和基础类
-from spider import CONFIG, ArcadeZoneCrawler
+from spider import CONFIG, EVAL_ID_RANKS, ArcadeZoneCrawler
+
 
 class ArcadeZoneSearchCrawler(ArcadeZoneCrawler):
     """
-    通过用户名搜索获取成绩的爬虫（结果不含全国排名）
-    继承原爬虫的基础方法（等级判断、时间格式化、CSRF获取等）
+    通过用户名搜索获取成绩的爬虫（含全国排名与服务器评级）
+    继承原爬虫的基础方法（CSRF获取、时间格式化、配置加载等）
     """
 
     def _search_request(self, payload: dict) -> Optional[dict]:
@@ -33,41 +35,40 @@ class ArcadeZoneSearchCrawler(ArcadeZoneCrawler):
     def search_by_name(self, name: str, course_id: Optional[int] = None) -> List[Dict]:
         """
         在指定赛道搜索用户的所有成绩
-        返回记录列表，每条记录包含：赛道、路线、时间、等级、车型、日期
+        返回记录列表，每条记录包含：赛道、路线、时间、等级、车型、排名、日期
+        服务器在 page=1 即返回该用户名在赛道的全部成绩（含重名玩家），翻页只会重复，
+        故只请求第 1 页。
         """
-        all_records = []
-        page = 1
+        payload = {
+            "page": 1,
+            "name": name,
+            "season": self.season
+        }
+        if course_id is not None:
+            payload["course"] = course_id
 
-        while True:
-            payload = {
-                "page": page,
-                "name": name,
-                "season": self.season
-            }
-            if course_id is not None:
-                payload["course"] = course_id
+        data = self._search_request(payload)
+        if not data:
+            return []
 
-            data = self._search_request(payload)
-            if not data:
-                break
-
-            page_records = self._parse_search_result(data)
-            all_records.extend(page_records)
-
-            pagination = data.get("pagination", {})
-            if page >= pagination.get("last_page", 1):
-                break
-            page += 1
-
-        return all_records
+        return self._parse_search_result(data)
 
     def _parse_search_result(self, data: dict) -> List[dict]:
-        """解析搜索结果，不包含排名信息"""
+        """
+        解析搜索结果，含全国排名与服务器评级
+        搜索接口为子串匹配，需按 NFKC 归一化后精确过滤目标用户名，避免混入
+        名称包含目标子串的无关玩家（如搜索"せや"会命中"ななせや"）。
+        """
         result = []
         rank_list = data.get("list", [])
         car_styles_map = data.get("carStyles", {})
 
         for item in rank_list:
+            user_info = item.get("userinfo", {})
+            username = unicodedata.normalize("NFKC", user_info.get("username", ""))
+            if username != self.target_username:
+                continue
+
             course_id = item.get("course_id")
             course_name = CONFIG["course_name_map"].get(course_id, "未知赛道")
             direction = CONFIG["course_direction_map"].get(course_id, "未知方向")
@@ -79,8 +80,9 @@ class ArcadeZoneSearchCrawler(ArcadeZoneCrawler):
             time_str = self._parse_time(goal_time_ms)
             play_time = item.get("play_dt", "").split(" ")[0]
 
-            # 复用等级判断
-            time_eval = self._judge_rank(course_name, direction, goal_time_ms)
+            # 使用服务器返回的 eval_id 推断等级（替代不可靠的本地 rank.csv）
+            time_eval = EVAL_ID_RANKS.get(item.get("eval_id"), "未知评价")
+            national_rank = str(item.get("rank", ""))
 
             record = {
                 "コース": course_name,
@@ -88,8 +90,8 @@ class ArcadeZoneSearchCrawler(ArcadeZoneCrawler):
                 "タイム": time_str,
                 "タイム評価": time_eval,
                 "記録車種": car_name,
+                "全国順位": national_rank,
                 "記録日": play_time
-                # 没有“全国順位”
             }
             result.append(record)
 
@@ -118,7 +120,7 @@ class ArcadeZoneSearchCrawler(ArcadeZoneCrawler):
 # 对外暴露的爬取函数（供core调用）
 def crawl_data_by_search(username: str = None) -> pd.DataFrame:
     """
-    通过用户名搜索爬取成绩（无排名）
+    通过用户名搜索爬取成绩（含全国排名）
     若 username 为 None，则从 Player_ID.dat 读取
     """
     if username is None:
@@ -128,7 +130,7 @@ def crawl_data_by_search(username: str = None) -> pd.DataFrame:
                 for line in lines:
                     line = line.strip()
                     if line.startswith("ID = "):
-                        username = line.split("=")[1].strip()
+                        username = unicodedata.normalize("NFKC", line.split("=")[1].strip())
                         break
                 if username is None:
                     raise ValueError("配置文件中未找到 ID 行")
