@@ -1,5 +1,5 @@
 # DACreator
-为头文字D：激斗设计的python程序，可以自动爬取arcadezone网页的计时赛成绩，并生成易于阅读的表格。
+为头文字D：激斗AZ服设计的python程序，可以自动爬取arcadezone网页的计时赛成绩，并生成易于阅读的表格。
 
 B站演示视频<https://www.bilibili.com/video/BV13SFWzTEnv/>
 
