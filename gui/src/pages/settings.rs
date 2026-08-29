@@ -155,9 +155,9 @@ pub fn render(app: &mut DacApp, ui: &mut egui::Ui) {
             let form = &mut app.settings.form;
             let w = (ui.available_width() - 220.0).max(200.0);
             field(ui, "👤 用户名（ArcadeZone ID）", &mut form.id, w);
-            field(ui, "🗺️ 地区", &mut form.region, w);
-            field(ui, "🏙️ 城市", &mut form.city, w);
-            field(ui, "🏪 店铺", &mut form.store, w);
+            field(ui, "地区", &mut form.region, w);
+            field(ui, "城市", &mut form.city, w);
+            field(ui, "店铺", &mut form.store, w);
             field(ui, "🚗 车队", &mut form.team, w);
             ui.horizontal(|ui| {
                 ui.label("📅 赛季：");
