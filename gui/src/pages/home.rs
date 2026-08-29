@@ -10,6 +10,7 @@ pub enum HomeMode {
     #[default]
     Crawl,
     LocalCsv,
+    Card,
 }
 
 impl HomeMode {
@@ -17,6 +18,7 @@ impl HomeMode {
         match self {
             HomeMode::Crawl => "🌐 成绩爬取（全部赛道，含全国排名）",
             HomeMode::LocalCsv => "📁 本地 CSV 生成表格",
+            HomeMode::Card => "成绩卡（简报：Top5 + 回合/名声/车队）",
         }
     }
 }
@@ -72,7 +74,7 @@ pub fn render(app: &mut DacApp, ui: &mut egui::Ui) {
             ui.set_width(ui.available_width());
             ui.label(RichText::new("选择模式").size(16.0));
             ui.add_space(4.0);
-            for mode in [HomeMode::Crawl, HomeMode::LocalCsv] {
+            for mode in [HomeMode::Crawl, HomeMode::LocalCsv, HomeMode::Card] {
                 ui.radio_value(&mut app.home_mode, mode, mode.label());
             }
 

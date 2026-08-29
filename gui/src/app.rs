@@ -34,8 +34,8 @@ impl Section {
         match self {
             Section::Home => "🏠",
             Section::Records => "📋",
-            Section::Settings => "⚙️",
-            Section::About => "ℹ️",
+            Section::Settings => "⚙",
+            Section::About => "ℹ",
         }
     }
 
@@ -184,6 +184,7 @@ impl DacApp {
                     "本地 CSV",
                 )
             }
+            HomeMode::Card => (vec!["card".to_owned(), "--json".to_owned()], "成绩卡"),
         };
         if let Some(dir) = self.out_dir.clone() {
             args.extend(["-d".to_owned(), dir]);
