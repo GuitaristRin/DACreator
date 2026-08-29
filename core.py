@@ -10,20 +10,12 @@ from typing import Optional
 from datetime import datetime
 import time
 
-# 导入spider模块的爬取函数
-try:
-    import spider
-except ImportError:
-    messagebox.showerror("错误", "未找到spider.py文件，请确保该文件与core.py在同一目录下")
-    sys.exit(1)
-
-# 导入新搜索模块（可选）
+# 导入爬取模块
 try:
     import spider_search
-    SEARCH_MODULE_AVAILABLE = True
 except ImportError:
-    SEARCH_MODULE_AVAILABLE = False
-    print("⚠️ 未找到 spider_search.py，搜索功能不可用")
+    messagebox.showerror("错误", "未找到spider_search.py文件，请确保该文件与core.py在同一目录下")
+    sys.exit(1)
 
 # 全局配置
 CONFIG = {
@@ -305,16 +297,12 @@ def main():
     print("\n===== DAC成绩表生成工具 =====")
     print("1. 爬取ArcadeZone用户数据并生成可视化表格图片（含排名）")
     print("2. 本地CSV文件生成可视化表格图片")
-    if SEARCH_MODULE_AVAILABLE:
-        print("3. 通过用户名搜索生成无排名表格图片（快速模式）")
-    choice = input(f"请选择功能（1/2{'/3' if SEARCH_MODULE_AVAILABLE else ''}）：").strip()
+    choice = input("请选择功能（1/2）：").strip()
     
     root = tk.Tk()
     root.withdraw()
     
     valid_choices = ["1", "2"]
-    if SEARCH_MODULE_AVAILABLE:
-        valid_choices.append("3")
     
     if choice not in valid_choices:
         messagebox.showerror("错误", f"无效选择，程序退出（有效选项：{', '.join(valid_choices)}）")
@@ -333,7 +321,7 @@ def main():
             sys.exit(1)
         
         print("\n📡 开始执行爬虫任务（遍历所有赛道）...")
-        df = spider.crawl_data()
+        df = spider_search.crawl_data_by_search()
         
         if df.empty:
             messagebox.showerror("错误", "未爬取到任何成绩数据")
@@ -413,63 +401,7 @@ def main():
         except Exception as e:
             messagebox.showerror("错误", f"保存图片失败：{str(e)}")
             sys.exit(1)
-    
-    # 功能3：搜索模式（无排名）
-    elif choice == "3" and SEARCH_MODULE_AVAILABLE:
-        if not ping_arcadezone():
-            messagebox.showerror("错误", "网络连接异常，无法访问ArcadeZone")
-            sys.exit(1)
-        
-        print("\n📡 开始执行搜索爬虫任务（快速模式）...")
-        df = spider_search.crawl_data_by_search()
-        
-        if df.empty:
-            messagebox.showerror("错误", "未搜索到任何成绩数据")
-            sys.exit(1)
-        
-        # 计算搜索耗时（在选择保存目录之前）
-        search_time = time.time() - start_time
-        print(f"⏱️ 数据搜索完成，耗时 {format_time(search_time)}")
-        
-        save_dir = select_save_dir()
-        
-        # 统一命名：DAC成绩表_时间戳
-        base_filename = f"DAC成绩表_{timestamp}"
-        
-        # 保存CSV（无排名列）
-        try:
-            csv_filename = f"{base_filename}.csv"
-            csv_path = os.path.join(save_dir, csv_filename)
-            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-            print(f"✅ CSV文件已保存至：{csv_path}")
-        except Exception as e:
-            messagebox.showwarning("提示", f"CSV保存失败：{str(e)}，继续生成图片")
-            csv_path = None
-        
-        # 生成图片
-        try:
-            print("🎨 开始生成可视化表格图片...")
-            table_img = create_table_image(df)
-            img_filename = f"{base_filename}.png"
-            img_path = os.path.join(save_dir, img_filename)
-            table_img.save(img_path, "PNG", dpi=(300, 300))
-            
-            # 计算总耗时
-            total_time = time.time() - start_time
-            print(f"✅ 完成！总耗时 {format_time(total_time)}")
-            
-            messagebox.showinfo("成功", f"""
-✅ 任务完成！
-- 搜索到 {len(df)} 条成绩数据
-- CSV文件路径：{csv_path if 'csv_path' in locals() else '未保存'}
-- 图片文件路径：{img_path}
-- 总耗时：{format_time(total_time)}
-            """)
-        except Exception as e:
-            messagebox.showerror("错误", f"生成图片失败：{str(e)}")
-            sys.exit(1)
 
 if __name__ == "__main__":
     print("若提示模块不存在，请执行：pip install -r requirements.txt")
-    print("提示：如需使用搜索功能，请确保 spider_search.py 在同一目录下")
     main()
