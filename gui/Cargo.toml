@@ -10,6 +10,5 @@ publish = false
 
 [dependencies]
 eframe = "0.31"
-
-# Sokuou 动画引擎：git submodule，M2 阶段引入后启用
-# sokuou = { path = "sokuou" }
+egui = "0.31"
+sokuou = { path = "sokuou" }
