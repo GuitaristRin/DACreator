@@ -160,7 +160,44 @@ fn event_to_output(ev: &events::EngineEvent) -> EngineOutput {
     }
 }
 
-/// 解析引擎可执行文件路径：环境变量 DACREATOR_ENGINE → 可执行文件同级 → 当前目录。
+#[cfg(has_embed_engine)]
+const EMBED_ENGINE: &[u8] = include_bytes!(env!("DAC_EMBED_ENGINE"));
+#[cfg(has_embed_engine)]
+const EMBED_VERSION: &str = env!("DAC_EMBED_VERSION");
+
+/// 内嵌引擎版本（未启用内嵌时为 None）。
+#[cfg(has_embed_engine)]
+pub fn embedded_version() -> Option<&'static str> {
+    Some(EMBED_VERSION)
+}
+
+#[cfg(not(has_embed_engine))]
+pub fn embedded_version() -> Option<&'static str> {
+    None
+}
+
+/// 把内嵌引擎释放到数据目录 bin/ 下（已存在且版本一致则跳过），返回其路径。
+#[cfg(has_embed_engine)]
+pub fn ensure_engine_extracted() -> Option<PathBuf> {
+    let base = dirs::data_dir()?.join("DACreator").join("bin");
+    let exe = base.join(if cfg!(windows) { "dac.exe" } else { "dac" });
+    let marker = base.join("version");
+    let fresh =
+        exe.is_file() && std::fs::read_to_string(&marker).ok().as_deref() == Some(EMBED_VERSION);
+    if !fresh {
+        std::fs::create_dir_all(&base).ok()?;
+        std::fs::write(&exe, EMBED_ENGINE).ok()?;
+        std::fs::write(&marker, EMBED_VERSION).ok()?;
+    }
+    Some(exe)
+}
+
+#[cfg(not(has_embed_engine))]
+pub fn ensure_engine_extracted() -> Option<PathBuf> {
+    None
+}
+
+/// 解析引擎可执行文件路径：环境变量 DACREATOR_ENGINE → 可执行文件同级 → 当前目录 → 内嵌释放。
 pub fn resolve_engine_exe() -> Option<PathBuf> {
     if let Ok(v) = std::env::var("DACREATOR_ENGINE") {
         if !v.is_empty() {
@@ -182,7 +219,7 @@ pub fn resolve_engine_exe() -> Option<PathBuf> {
     if cwd.is_file() {
         return Some(cwd);
     }
-    None
+    ensure_engine_extracted()
 }
 
 fn engine_file_name() -> &'static str {
