@@ -1,7 +1,5 @@
 // EngineHandle：引擎子进程管理 + JSON-lines 事件流解析。
 // GUI 与引擎的唯一通道：`dac <子命令> --json`，stdout 逐行 JSON 事件。
-// 对外 API 随主页（M3.2）接入逐步消费。
-#![allow(dead_code)]
 
 pub mod events;
 
