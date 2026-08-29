@@ -32,8 +32,11 @@ type Reporter interface {
 
 // Client 是 ArcadeZone 计时赛搜索 API 客户端。
 type Client struct {
-	WebURL string
-	APIURL string
+	WebURL   string
+	APIURL   string
+	RoundURL string
+	PrideURL string
+	TeamURL  string
 
 	username string
 	season   int
@@ -46,11 +49,14 @@ type Client struct {
 // NewClient 创建客户端；username 需已做 NFKC 归一化（config.Load 已保证）。
 func NewClient(username string, season int) *Client {
 	return &Client{
-		WebURL: DefaultWebURL,
-		APIURL: DefaultAPIURL,
+		WebURL:   DefaultWebURL,
+		APIURL:   DefaultAPIURL,
+		RoundURL: DefaultRoundURL,
+		PrideURL: DefaultPrideURL,
+		TeamURL:  DefaultTeamURL,
 		username: username,
-		season:  season,
-		http:    &http.Client{},
+		season:   season,
+		http:     &http.Client{},
 		headers: map[string]string{
 			"User-Agent":   defaultUA,
 			"Content-Type": "application/json",
