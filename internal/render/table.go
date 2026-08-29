@@ -23,13 +23,13 @@ type Config struct {
 	ColWidths    []int // 7 列宽度
 	Scale        int
 
-	BgColor        color.Color
-	HeaderColor    color.Color
+	BgColor         color.Color
+	HeaderColor     color.Color
 	HeaderTextColor color.Color
-	RowEvenColor   color.Color
-	RowOddColor    color.Color
-	TextColor      color.Color
-	BorderColor    color.Color
+	RowEvenColor    color.Color
+	RowOddColor     color.Color
+	TextColor       color.Color
+	BorderColor     color.Color
 
 	RankImgScale float64 // 徽章高度占行高的比例
 	RankImgFiles map[string]string

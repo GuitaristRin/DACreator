@@ -1,10 +1,10 @@
 package render
 
 import (
-	"image/color"
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"

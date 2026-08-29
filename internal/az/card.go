@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GuitaristRin/DACreator/internal/model"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -204,7 +205,7 @@ func (c *Client) TeamInfo(teamName string, roundSeq int, rep Reporter) (score in
 
 // CardData 是成绩卡需要的全部数据。
 type CardData struct {
-	Records    []CardRecord
+	Records    []model.Record
 	RoundSeq   int
 	RoundScore int
 	RoundRank  int
@@ -214,14 +215,6 @@ type CardData struct {
 	TeamScore  int
 	TeamLevel  string
 	TeamRank   int
-}
-
-// CardRecord 是成绩卡展示的单条记录。
-type CardRecord struct {
-	Course    string
-	Direction string
-	TimeMs    int
-	Rank      string
 }
 
 // FetchCardData 抓取成绩卡所需数据：计时赛记录（必需）+ 回合/名声/车队（尽力而为）。
@@ -236,11 +229,7 @@ func (c *Client) FetchCardData(ctx context.Context, cfgTeamName string, cfgRound
 	if err != nil {
 		return data, err
 	}
-	for _, r := range records {
-		data.Records = append(data.Records, CardRecord{
-			Course: r.Course, Direction: r.Direction, TimeMs: r.TimeMs, Rank: r.Rank,
-		})
-	}
+	data.Records = records
 
 	if pt, rk, err := c.RoundInfo(cfgRound, rep); err != nil {
 		rep.Log("warning", "回合信息获取失败："+err.Error())
