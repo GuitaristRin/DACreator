@@ -7,8 +7,10 @@ use std::time::Instant;
 use crate::components;
 use crate::engine::{self, EngineOutput, RunningTask};
 use crate::pages;
+use crate::pages::about;
 use crate::pages::home::{HomeMode, LogLine, TaskResult};
 use crate::pages::records;
+use crate::pages::settings;
 use crate::theme;
 
 /// 顶层导航分区。
@@ -76,6 +78,10 @@ pub struct DacApp {
     // ── 数据页 ─────────────────────────────────────────────────
     pub history: records::HistoryState,
 
+    // ── 设置页 / 关于页 ────────────────────────────────────────
+    pub settings: settings::SettingsState,
+    pub about: about::AboutState,
+
     // ── 主页表单 ───────────────────────────────────────────────
     pub home_mode: HomeMode,
     pub csv_path: Option<String>,
@@ -89,8 +95,14 @@ impl DacApp {
         let font_path = assets_dir().join("font").join("NotoSansCJKsc-Bold.otf");
         theme::setup_fonts(&cc.egui_ctx, Some(font_path));
 
-        let theme_mode = theme::ThemeMode::System;
+        let prefs = settings::load_ui_prefs();
+        let theme_mode = match prefs.theme_mode {
+            1 => theme::ThemeMode::Light,
+            2 => theme::ThemeMode::Dark,
+            _ => theme::ThemeMode::System,
+        };
         theme::set_dark(theme::effective_dark(&cc.egui_ctx, theme_mode));
+        theme::set_accent(prefs.accent_idx);
 
         let engine_exe = engine::resolve_engine_exe();
 
@@ -109,6 +121,8 @@ impl DacApp {
             last_result: None,
             last_error: None,
             history: records::HistoryState::default(),
+            settings: settings::SettingsState::default(),
+            about: about::AboutState::default(),
             home_mode: HomeMode::default(),
             csv_path: None,
             out_dir: None,
@@ -183,6 +197,43 @@ impl DacApp {
             }
             Err(e) => self.push_log("error", format!("引擎启动失败：{e}")),
         }
+    }
+
+    /// 设置外观模式（切换带 Metro 过渡并持久化）。
+    pub fn set_theme_mode(&mut self, mode: theme::ThemeMode) {
+        self.theme_mode = mode;
+        // 显式模式立即过渡；System 模式交由帧循环的跟随逻辑生效
+        match mode {
+            theme::ThemeMode::Light => {
+                theme::start_dark_transition(false);
+                theme::set_dark(false);
+            }
+            theme::ThemeMode::Dark => {
+                theme::start_dark_transition(true);
+                theme::set_dark(true);
+            }
+            theme::ThemeMode::System => {}
+        }
+        self.persist_ui_prefs();
+    }
+
+    /// 设置强调色（切换带 Metro 过渡并持久化）。
+    pub fn set_accent(&mut self, idx: usize) {
+        theme::start_accent_transition(idx);
+        theme::set_accent(idx);
+        self.persist_ui_prefs();
+    }
+
+    fn persist_ui_prefs(&self) {
+        let theme_mode = match self.theme_mode {
+            theme::ThemeMode::Light => 1_u8,
+            theme::ThemeMode::Dark => 2,
+            theme::ThemeMode::System => 0,
+        };
+        settings::store_ui_prefs(settings::UiPrefs {
+            theme_mode,
+            accent_idx: theme::accent_idx(),
+        });
     }
 
     /// 停止当前任务。
