@@ -19,6 +19,7 @@ import (
 	"github.com/GuitaristRin/DACreator/internal/model"
 	"github.com/GuitaristRin/DACreator/internal/render"
 	"github.com/GuitaristRin/DACreator/internal/store"
+	"github.com/GuitaristRin/DACreator/internal/update"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -201,6 +202,8 @@ func cmdConfig(args []string) error {
 			return errors.New("用法：dac config import <Player_ID.dat 路径>")
 		}
 		return cmdConfigImport(args[1])
+	case "set":
+		return cmdConfigSet(args[1:])
 	default:
 		return fmt.Errorf("未知 config 子命令 %q（支持 show / import）", args[0])
 	}
@@ -249,6 +252,98 @@ func configDisplayPath() string {
 		return "config.toml"
 	}
 	return p
+}
+
+// cmdConfigSet 增量更新配置（GUI 设置页的写入通路）。
+// 只提供 flag 的字段会被更新，未提供的字段保持原值。
+func cmdConfigSet(args []string) error {
+	fs := flag.NewFlagSet("config set", flag.ExitOnError)
+	id := fs.String("id", "", "ArcadeZone 用户名")
+	region := fs.String("region", "", "店铺所在地区")
+	city := fs.String("city", "", "店铺所在城市")
+	store := fs.String("store", "", "店铺名")
+	team := fs.String("team", "", "车队名")
+	season := fs.Int("season", 0, "赛季 1-10")
+	round := fs.Int("round", 0, "回合 1-10")
+	jsonMode := fs.Bool("json", false, "以 JSON 输出更新后的配置")
+	flags, _ := splitFlagArgs(args, "id", "region", "city", "store", "team", "season", "round")
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if *id != "" {
+		cfg.ID = *id
+	}
+	if *region != "" {
+		cfg.Region = *region
+	}
+	if *city != "" {
+		cfg.City = *city
+	}
+	if *store != "" {
+		cfg.Store = *store
+	}
+	if *team != "" {
+		cfg.Team = *team
+	}
+	if *season > 0 {
+		cfg.Season = *season
+	}
+	if *round > 0 {
+		cfg.Round = *round
+	}
+	if err := config.Save(cfg); err != nil {
+		return err
+	}
+	if *jsonMode {
+		return json.NewEncoder(os.Stdout).Encode(cfg)
+	}
+	fmt.Println("✅ 配置已更新")
+	return nil
+}
+
+// cmdUpdate 检查 GitHub Releases 上的新版本。
+func cmdUpdate(args []string) error {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	jsonMode := fs.Bool("json", false, "以 JSON 输出检查结果")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	rel, hasUpdate, err := update.CheckUpdate(context.Background(), version)
+	if err != nil {
+		emit := events.NewEmitter(os.Stdout, *jsonMode)
+		emit.Error("network", err.Error())
+		return err
+	}
+	assetName, assetURL := "", ""
+	if len(rel.Assets) > 0 {
+		assetName = rel.Assets[0].Name
+		assetURL = rel.Assets[0].BrowserDownloadURL
+	}
+	if *jsonMode {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"current":    version,
+			"latest":     rel.TagName,
+			"has_update": hasUpdate,
+			"notes":      rel.Body,
+			"asset_name": assetName,
+			"asset_url":  assetURL,
+		})
+	}
+	if hasUpdate {
+		fmt.Printf("🎉 发现新版本 %s（当前 %s）\n更新说明：\n%s\n", rel.TagName, version, rel.Body)
+		if assetURL != "" {
+			fmt.Printf("下载：%s\n", assetURL)
+		}
+	} else {
+		fmt.Printf("✅ 已是最新版本（%s）\n", version)
+	}
+	return nil
 }
 
 func cmdVersion(args []string) error {
