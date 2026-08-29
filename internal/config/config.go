@@ -47,6 +47,22 @@ func Path() (string, error) {
 	return filepath.Join(dir, "config.toml"), nil
 }
 
+// AssetsDir 解析资产目录，优先级：环境变量 DACREATOR_ASSETS → 可执行文件同级 assets → 当前目录 assets。
+// 前两级是部署形态的正规来源，最后一级仅为 `go run` 开发便利兜底。
+func AssetsDir() string {
+	if v := os.Getenv("DACREATOR_ASSETS"); v != "" {
+		return v
+	}
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "assets")
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	p, _ := filepath.Abs("assets")
+	return p
+}
+
 // Load 读取配置；文件不存在时返回默认配置（不视为错误）。
 func Load() (Config, error) {
 	cfg := Default()
