@@ -8,6 +8,7 @@ use crate::components;
 use crate::engine::{self, EngineOutput, RunningTask};
 use crate::pages;
 use crate::pages::home::{HomeMode, LogLine, TaskResult};
+use crate::pages::records;
 use crate::theme;
 
 /// 顶层导航分区。
@@ -72,6 +73,9 @@ pub struct DacApp {
     pub last_result: Option<TaskResult>,
     pub last_error: Option<String>,
 
+    // ── 数据页 ─────────────────────────────────────────────────
+    pub history: records::HistoryState,
+
     // ── 主页表单 ───────────────────────────────────────────────
     pub home_mode: HomeMode,
     pub csv_path: Option<String>,
@@ -104,6 +108,7 @@ impl DacApp {
             logs: Vec::new(),
             last_result: None,
             last_error: None,
+            history: records::HistoryState::default(),
             home_mode: HomeMode::default(),
             csv_path: None,
             out_dir: None,
@@ -230,10 +235,15 @@ impl DacApp {
                 }
                 EngineOutput::Exited { success } => {
                     exited = true;
+                    let label = self
+                        .task
+                        .as_ref()
+                        .map(|t| t.label.clone())
+                        .unwrap_or_default();
                     if success {
-                        self.push_log("success", "任务结束");
+                        self.push_log("success", format!("{label}任务结束"));
                     } else if self.last_error.is_none() {
-                        self.push_log("error", "引擎异常退出");
+                        self.push_log("error", format!("{label}引擎异常退出"));
                     }
                 }
             }

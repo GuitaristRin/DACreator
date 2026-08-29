@@ -111,6 +111,27 @@ pub fn spawn_engine(exe: &Path, args: &[String], label: &str) -> std::io::Result
     Ok(RunningTask { rx, child, label })
 }
 
+/// 一次性查询：运行引擎子命令并收集完整 stdout（后台线程执行，经 Receiver 取回）。
+/// 适用于 `config show --json`、`history --json` 等非事件流命令。
+pub fn query_engine(exe: &Path, args: &[String]) -> Receiver<std::io::Result<String>> {
+    let (tx, rx) = mpsc::channel();
+    let mut cmd = Command::new(exe);
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    thread::spawn(move || {
+        let out = match cmd.output() {
+            Ok(o) if o.status.success() => Ok(String::from_utf8_lossy(&o.stdout).to_string()),
+            Ok(o) => Err(std::io::Error::other(format!(
+                "引擎退出码 {:?}：{}",
+                o.status.code(),
+                String::from_utf8_lossy(&o.stderr).trim()
+            ))),
+            Err(e) => Err(e),
+        };
+        tx.send(out).ok();
+    });
+    rx
+}
+
 fn event_to_output(ev: &events::EngineEvent) -> EngineOutput {
     match ev.kind.as_str() {
         "progress" => EngineOutput::Progress {
