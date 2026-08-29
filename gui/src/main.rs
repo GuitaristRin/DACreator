@@ -3,6 +3,7 @@
 
 mod app;
 mod components;
+mod engine;
 mod pages;
 mod theme;
 
