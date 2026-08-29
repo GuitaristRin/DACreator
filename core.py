@@ -126,18 +126,6 @@ def load_csv_data(csv_path: str) -> pd.DataFrame:
         messagebox.showerror("错误", f"读取CSV失败：{str(e)}")
         sys.exit(1)
 
-def load_csv_data_no_rank(csv_path: str) -> pd.DataFrame:
-    """加载无排名列的CSV数据（搜索模式专用）"""
-    try:
-        df = pd.read_csv(csv_path, encoding="utf-8-sig")
-        required_cols = ["コース", "ルート", "タイム", "タイム評価", "記録車種", "記録日"]
-        if not all(col in df.columns for col in required_cols):
-            raise ValueError(f"CSV文件缺少必要列，需包含：{required_cols}")
-        return df
-    except Exception as e:
-        messagebox.showerror("错误", f"读取CSV失败：{str(e)}")
-        sys.exit(1)
-
 def load_rank_image(rank_text: str, target_height: int) -> Optional[Image.Image]:
     """加载等级图片"""
     rank_text_upper = rank_text.strip().upper()

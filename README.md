@@ -3,8 +3,6 @@
 
 B站演示视频<https://www.bilibili.com/video/BV13SFWzTEnv/>
 
-本分支已进行修改，将原有的两个在线查找模式合并为单一搜索模式并使用网站数据获取成绩评级
-
 # 快速开始
 ## 环境要求
 - Python 3.7 +
@@ -18,7 +16,7 @@ B站演示视频<https://www.bilibili.com/video/BV13SFWzTEnv/>
 ```
 ### 克隆仓库
 ```shell
-https://github.com/OTaku9418/DACreator.git
+https://github.com/GuitaristRin/DACreator.git
 ```
 ```shell
 cd DACreator

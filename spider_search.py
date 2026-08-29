@@ -141,8 +141,9 @@ def crawl_data_by_search(username: str = None) -> pd.DataFrame:
 
     try:
         crawler = ArcadeZoneSearchCrawler()
+        crawler.target_username = unicodedata.normalize("NFKC", username)
         print(f"🔍 开始搜索用户 {username} 在所有赛道的成绩...")
-        records = crawler.crawl_all_courses_by_search(username)
+        records = crawler.crawl_all_courses_by_search(crawler.target_username)
 
         if not records:
             print("❌ 未找到任何成绩记录")
