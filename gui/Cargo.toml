@@ -1,0 +1,15 @@
+[package]
+name = "dacreator-gui"
+version = "0.1.0"
+description = "DACreator - 头文字D激斗成绩表生成工具（egui + Metro Design）"
+authors = ["Takahashi Rinta <mc1586182829@outlook.com>"]
+license = "MIT"
+edition = "2021"
+repository = "https://github.com/GuitaristRin/DACreator"
+publish = false
+
+[dependencies]
+eframe = "0.31"
+
+# Sokuou 动画引擎：git submodule，M2 阶段引入后启用
+# sokuou = { path = "sokuou" }
