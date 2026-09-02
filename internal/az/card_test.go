@@ -154,6 +154,56 @@ func TestFetchPagedStopsAtPageCap(t *testing.T) {
 	}
 }
 
+// dynamicRoundServer 的 CSRF 页面内嵌官方回合映射（与真实页面同构），
+// 用于验证 round_id 的动态解析与越界拒绝。
+func dynamicRoundServer(t *testing.T) (*httptest.Server, *Client, *atomic.Int32) {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ranking", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(csrfHTMLNameFirst +
+			`<script>window.roundsBySeason = {"9":[{"id":91,"round_event_nm":"Arcade Zone Season9 Round 1"},{"id":93,"round_event_nm":"Arcade Zone Season9 Round 2"}]};</script>`))
+	})
+	var gotRoundID atomic.Int32
+	mux.HandleFunc("POST /ranking/round", func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			RoundID int `json:"round_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		gotRoundID.Store(int32(payload.RoundID))
+		fmt.Fprint(w, `{"list":[{"point":50,"userinfo":{"username":"Rin"}}],"pagination":{"per_page":15,"last_page":1}}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	c := NewClient("Rin", 9)
+	c.WebURL = srv.URL + "/ranking"
+	c.RoundURL = srv.URL + "/ranking/round"
+	return srv, c, &gotRoundID
+}
+
+func TestRoundInfoUsesDynamicRoundID(t *testing.T) {
+	_, c, got := dynamicRoundServer(t)
+	// 第 2 回合 → round_id=93：内置映射不可能给出的值
+	point, rank, err := c.RoundInfo(context.Background(), 2, nil)
+	if err != nil {
+		t.Fatalf("查询失败：%v", err)
+	}
+	if point != 50 || rank != 1 {
+		t.Errorf("回合数据不符：%d/%d", point, rank)
+	}
+	if id := got.Load(); id != 93 {
+		t.Errorf("应使用页面映射的 round_id=93，实际 %d", id)
+	}
+}
+
+func TestRoundInfoRejectsRoundBeyondBoard(t *testing.T) {
+	_, c, _ := dynamicRoundServer(t)
+	// 页面只定义第 1-2 回合：请求第 3 回合应显式报错，而不是静默回退到错误数据
+	if _, _, err := c.RoundInfo(context.Background(), 3, nil); err == nil {
+		t.Fatal("越界回合应报错")
+	}
+}
+
 func TestFetchCardDataToleratesSecondaryFailures(t *testing.T) {
 	_, c := cardTestServer(t)
 	// 未配置车队名 → 车队信息失败但不应阻断

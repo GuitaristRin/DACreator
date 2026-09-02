@@ -20,7 +20,9 @@ const (
 	DefaultTeamURL  = "https://arcadezone.cn/ranking/team"
 )
 
-// RoundIDMapping 回合序号(1-4) → API round_id（旧版实测映射，官方调整赛季时需维护）。
+// RoundIDMapping 回合序号(1-4) → API round_id 的内置兜底映射（Season 5 实测值）。
+// 正常路径从排行榜页面内嵌的官方映射动态解析（见 rounds.go），
+// 仅当页面不可达或结构变化时才使用此表，届时调用方会记警告日志。
 var RoundIDMapping = map[int]int{1: 5, 2: 7, 3: 8, 4: 9}
 
 // LeagueMapping 联赛等级 ID → 名称（来源 team_league0-6.png 编号）。
@@ -34,6 +36,18 @@ func roundID(seq int) int {
 		return id
 	}
 	return 9 // 旧版默认回合 4 → 9
+}
+
+// resolveRoundWithLog 解析回合 ID，回退到内置表时记录警告（RoundInfo / TeamInfo 共用）。
+func (c *Client) resolveRoundWithLog(rep Reporter, roundSeq int) (int, error) {
+	id, dynamic, err := c.resolveRoundID(c.season, roundSeq)
+	if err != nil {
+		return 0, err
+	}
+	if !dynamic {
+		rep.Log("warning", fmt.Sprintf("未能从页面解析回合映射，回退内置表：第 %d 回合 → round_id=%d", roundSeq, id))
+	}
+	return id, nil
 }
 
 // postJSON 带重试的 POST JSON，返回解析后的响应对象。
@@ -153,7 +167,10 @@ func (c *Client) RoundInfo(ctx context.Context, roundSeq int, rep Reporter) (poi
 	if rep == nil {
 		rep = nopReporter{}
 	}
-	id := roundID(roundSeq)
+	id, err := c.resolveRoundWithLog(rep, roundSeq)
+	if err != nil {
+		return 0, 0, fmt.Errorf("第 %d 回合：%w", roundSeq, err)
+	}
 	rep.Log("info", fmt.Sprintf("查询第 %d 回合排名（round_id=%d）", roundSeq, id))
 
 	item, rankPos, err := c.fetchPaged(ctx, c.RoundURL,
@@ -196,7 +213,10 @@ func (c *Client) TeamInfo(ctx context.Context, teamName string, roundSeq int, re
 	if teamName == "" {
 		return 0, "", 0, fmt.Errorf("未配置车队名称")
 	}
-	id := roundID(roundSeq)
+	id, err := c.resolveRoundWithLog(rep, roundSeq)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("第 %d 回合：%w", roundSeq, err)
+	}
 	rep.Log("info", fmt.Sprintf("查询车队 %s 排名（round_id=%d）", teamName, id))
 
 	// 与用户名一致做 NFKC 归一化精确匹配，容忍全角/半角差异

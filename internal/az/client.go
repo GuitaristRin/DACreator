@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/GuitaristRin/DACreator/internal/model"
@@ -45,6 +46,10 @@ type Client struct {
 	http     *http.Client
 	headers  map[string]string
 	maxRetry int
+
+	// 回合映射缓存：initCSRF 抓取排行榜页面时顺带解析内嵌的官方映射
+	roundsMu    sync.Mutex
+	roundsBoard map[string][]RoundMeta
 }
 
 // NewClient 创建客户端；username 需已做 NFKC 归一化（config.Load 已保证）。
@@ -101,6 +106,8 @@ func (c *Client) initCSRF(ctx context.Context) error {
 		return err
 	}
 	c.headers["X-CSRF-TOKEN"] = token
+	// 同一页面内嵌官方回合映射，顺手缓存（失败不影响 CSRF 流程）
+	c.cacheRoundBoard(string(body))
 	return nil
 }
 
