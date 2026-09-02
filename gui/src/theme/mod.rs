@@ -1,9 +1,6 @@
 // DACreator GUI — Metro Design 主题系统
 // 移植自 PezMax-One：扁平、大字体、内容优先、色块分区，
 // 深浅色与强调色切换均由 MetroAnim 驱动平滑过渡。
-//
-// 调色板与 ThemeMode 是完整 API，部分条目随页面接入逐步消费。
-#![allow(dead_code)]
 
 use sokuou::{EasingMode, MetroAnim, UwpEasing};
 use std::cell::{Cell, RefCell};
@@ -309,9 +306,6 @@ pub mod colors {
             Color32::from_rgb(0x9A, 0x9A, 0xAA),
         )
     }
-    pub fn text_on_primary() -> Color32 {
-        Color32::WHITE
-    }
 
     // ── 背景 ────────────────────────────────────────────────────────────────
     pub fn bg_white() -> Color32 {
@@ -367,9 +361,6 @@ pub mod colors {
     }
     pub fn error() -> Color32 {
         Color32::from_rgb(0xE8, 0x11, 0x23)
-    }
-    pub fn info() -> Color32 {
-        Color32::from_rgb(0x00, 0x78, 0xD4)
     }
 }
 
