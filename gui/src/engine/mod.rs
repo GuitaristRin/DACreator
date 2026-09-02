@@ -312,7 +312,7 @@ mod tests {
 
         let mut got_progress = false;
         let mut got_result = false;
-        let mut exited = false;
+        let exited;
         loop {
             match rx.recv_timeout(std::time::Duration::from_secs(5)) {
                 Ok(EngineOutput::Progress { pct: 50, .. }) => got_progress = true,

@@ -39,7 +39,7 @@ pub fn load_ui_prefs() -> UiPrefs {
 }
 
 pub fn store_ui_prefs(prefs: UiPrefs) {
-    if let Err(e) = confy::store("DACreator", None, &prefs) {
+    if let Err(e) = confy::store("DACreator", None, prefs) {
         eprintln!("⚠️ 保存外观偏好失败：{e}");
     }
 }
