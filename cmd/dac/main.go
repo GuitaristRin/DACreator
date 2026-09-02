@@ -17,11 +17,12 @@ const usage = `DACreator v3 引擎 —— 头文字D 激斗成绩工具
   dac crawl     [-u 用户名] [-s 赛季] [-d 图片目录] [-c 并发数] [--json]   爬取全部赛道成绩
   dac localcsv  <成绩.csv> [-d 图片目录] [--json]                          本地 CSV 生成表格
   dac history   [-c 赛道] [-n 条数] [--json]                               查询历史记录
-  dac config    show [--json] | import <Player_ID.dat>                    查看或导入配置
+  dac config    show [--json] | set --id 名称 … | import <Player_ID.dat>  查看或导入配置
+  dac update    check [--json]                                            检查更新
   dac version   [--json]                                                  版本信息
 
 全局约定：
-  * 原始 CSV 始终保存到数据目录 raw/ 下（Windows: %%APPDATA%%/DACreator）。
+  * 原始 CSV 始终保存到数据目录 raw/ 下（Windows: %APPDATA%/DACreator）。
   * --json 时以 JSON-lines 事件流输出（GUI 消费协议），否则为人读文本。`
 
 func main() {
