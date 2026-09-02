@@ -88,11 +88,13 @@ pub fn render(app: &mut DacApp, ui: &mut egui::Ui) {
     ui.add_space(8.0);
     app.about.poll(ui.ctx());
 
-    // 首次进入查询引擎版本
+    // 首次进入查询引擎版本；引擎缺失时回退显示构建期内嵌的引擎版本
     if app.about.version.is_none() && app.about.version_rx.is_none() && !app.about.update_checking {
         if let Some(exe) = app.engine_exe.clone() {
             let args = vec!["version".to_owned(), "--json".to_owned()];
             app.about.version_rx = Some(crate::engine::query_engine(&exe, &args));
+        } else if let Some(v) = crate::engine::embedded_version() {
+            app.about.version = Some(v.to_owned());
         }
     }
 
@@ -143,9 +145,17 @@ pub fn render(app: &mut DacApp, ui: &mut egui::Ui) {
                                 ui.label(egui::RichText::new(&info.notes).color(colors::text_secondary()));
                             });
                     }
-                    if ui.button("前往 Releases 页面下载").clicked() {
-                        open_url("https://github.com/GuitaristRin/DACreator/releases/latest");
-                    }
+                    ui.horizontal(|ui| {
+                        if ui.button("前往 Releases 页面下载").clicked() {
+                            open_url("https://github.com/GuitaristRin/DACreator/releases/latest");
+                        }
+                        if !info.asset_url.is_empty() {
+                            ui.hyperlink_to(
+                                format!("直接下载 {}", info.asset_name),
+                                &info.asset_url,
+                            );
+                        }
+                    });
                 } else {
                     ui.label(
                         egui::RichText::new(format!("✅ 已是最新版本（{}）", info.current))
