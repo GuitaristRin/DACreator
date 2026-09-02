@@ -91,6 +91,7 @@ func Load() (Config, error) {
 }
 
 // Save 将配置写入数据目录。
+// 先写临时文件再原子替换，避免写入中途被杀留下截断的配置。
 func Save(cfg Config) error {
 	dir, err := Dir()
 	if err != nil {
@@ -105,8 +106,13 @@ func Save(cfg Config) error {
 		return fmt.Errorf("编码配置: %w", err)
 	}
 	path := filepath.Join(dir, "config.toml")
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("写入配置 %s: %w", path, err)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("写入配置 %s: %w", tmp, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("替换配置 %s: %w", path, err)
 	}
 	return nil
 }
