@@ -112,6 +112,15 @@ func TestTeamInfo(t *testing.T) {
 	}
 }
 
+func TestTeamInfoNFKCName(t *testing.T) {
+	_, c := cardTestServer(t)
+	// 配置里写全角字符也应命中（NFKC 归一化后与服务器车队名一致）
+	_, _, _, err := c.TeamInfo("Ｐｒｏｊｅｃｔ　Ｄ", 1, nil)
+	if err != nil {
+		t.Fatalf("全角车队名应命中：%v", err)
+	}
+}
+
 func TestFetchCardDataToleratesSecondaryFailures(t *testing.T) {
 	_, c := cardTestServer(t)
 	// 未配置车队名 → 车队信息失败但不应阻断

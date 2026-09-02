@@ -185,11 +185,13 @@ func (c *Client) TeamInfo(teamName string, roundSeq int, rep Reporter) (score in
 	id := roundID(roundSeq)
 	rep.Log("info", fmt.Sprintf("查询车队 %s 排名（round_id=%d）", teamName, id))
 
+	// 与用户名一致做 NFKC 归一化精确匹配，容忍全角/半角差异
+	target := norm.NFKC.String(teamName)
 	item, rankPos, err := c.fetchPaged(c.TeamURL,
 		func(page int) map[string]any { return map[string]any{"page": page, "round_id": id} },
 		func(item map[string]any) bool {
 			name, _ := subMap(item, "teaminfo")["team_name"].(string)
-			return name == teamName
+			return norm.NFKC.String(name) == target
 		},
 	)
 	if err != nil {
