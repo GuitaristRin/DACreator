@@ -204,7 +204,7 @@ pub fn render(app: &mut DacApp, ui: &mut egui::Ui) {
                 if let Some(result) = &app.last_result {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // 成绩卡只有图片；爬取/本地 CSV 未指定输出目录时回退到原始 CSV 所在目录
-                        let csv = (!result.csv_path.is_empty()).then(|| result.csv_path.as_str());
+                        let csv = (!result.csv_path.is_empty()).then_some(result.csv_path.as_str());
                         let open_path = result.png_path.as_deref().or(csv);
                         if let Some(path) = open_path {
                             let label = if result.png_path.is_some() {

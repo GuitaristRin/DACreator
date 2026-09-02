@@ -47,14 +47,13 @@ pub fn render(app: &mut DacApp, ctx: &egui::Context) {
                             "切换到深色"
                         });
                     if resp.clicked() {
+                        // 走 set_theme_mode 统一处理过渡与偏好持久化
                         let target = !theme::is_dark();
-                        app.theme_mode = if target {
+                        app.set_theme_mode(if target {
                             theme::ThemeMode::Dark
                         } else {
                             theme::ThemeMode::Light
-                        };
-                        theme::start_dark_transition(target);
-                        theme::set_dark(target);
+                        });
                     }
                 });
             });
