@@ -232,7 +232,9 @@ func cmdHistory(args []string) error {
 	course := fs.String("c", "", "按赛道筛选")
 	limit := fs.Int("n", 100, "最大条数")
 	jsonMode := fs.Bool("json", false, "以 JSON 输出")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	dbPath, err := historyPath()
 	if err != nil {
@@ -285,7 +287,9 @@ func cmdConfig(args []string) error {
 func cmdConfigShow(args []string) error {
 	fs := flag.NewFlagSet("config show", flag.ExitOnError)
 	jsonMode := fs.Bool("json", false, "以 JSON 输出")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -422,7 +426,9 @@ func cmdUpdate(args []string) error {
 func cmdVersion(args []string) error {
 	fs := flag.NewFlagSet("version", flag.ExitOnError)
 	jsonMode := fs.Bool("json", false, "以 JSON 输出")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *jsonMode {
 		return json.NewEncoder(os.Stdout).Encode(map[string]string{"version": version})
 	}
