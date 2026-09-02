@@ -1,6 +1,8 @@
 package az
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +45,6 @@ type Client struct {
 	http     *http.Client
 	headers  map[string]string
 	maxRetry int
-	timeout  time.Duration
 }
 
 // NewClient 创建客户端；username 需已做 NFKC 归一化（config.Load 已保证）。
@@ -56,7 +57,7 @@ func NewClient(username string, season int) *Client {
 		TeamURL:  DefaultTeamURL,
 		username: username,
 		season:   season,
-		http:     &http.Client{},
+		http:     &http.Client{Timeout: 30 * time.Second},
 		headers: map[string]string{
 			"User-Agent":   defaultUA,
 			"Content-Type": "application/json",
@@ -65,7 +66,6 @@ func NewClient(username string, season int) *Client {
 			"Origin":       "https://arcadezone.cn",
 		},
 		maxRetry: 3,
-		timeout:  30 * time.Second,
 	}
 }
 
@@ -76,8 +76,8 @@ var (
 )
 
 // initCSRF 访问排行榜页面提取 meta[name=csrf-token]，后续请求携带 X-CSRF-TOKEN。
-func (c *Client) initCSRF() error {
-	req, err := http.NewRequest(http.MethodGet, c.WebURL, nil)
+func (c *Client) initCSRF(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.WebURL, nil)
 	if err != nil {
 		return fmt.Errorf("构造 CSRF 请求: %w", err)
 	}
@@ -153,8 +153,9 @@ func rawToString(raw json.RawMessage) string {
 
 // SearchCourse 在指定赛道搜索当前用户的成绩，返回精确匹配的记录。
 // 搜索接口为子串匹配，必须按 NFKC 归一化后精确过滤，避免混入无关玩家。
-func (c *Client) SearchCourse(courseID int) ([]model.Record, error) {
-	if err := c.ensureCSRF(); err != nil {
+// 取消 ctx 可中断请求与重试等待。
+func (c *Client) SearchCourse(ctx context.Context, courseID int) ([]model.Record, error) {
+	if err := c.ensureCSRF(ctx); err != nil {
 		return nil, err
 	}
 	payload := map[string]any{
@@ -170,10 +171,17 @@ func (c *Client) SearchCourse(courseID int) ([]model.Record, error) {
 
 	var lastErr error
 	for retry := 0; retry < c.maxRetry; retry++ {
-		if retry > 0 {
-			time.Sleep(time.Duration(retry) * time.Second)
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		req, err := http.NewRequest(http.MethodPost, c.APIURL, strings.NewReader(string(body)))
+		if retry > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(retry) * time.Second):
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.APIURL, bytes.NewReader(body))
 		if err != nil {
 			return nil, fmt.Errorf("构造搜索请求: %w", err)
 		}
@@ -251,9 +259,9 @@ func (c *Client) filterRecords(resp searchResp) []model.Record {
 }
 
 // ensureCSRF 保证已取得 CSRF Token（幂等）。
-func (c *Client) ensureCSRF() error {
+func (c *Client) ensureCSRF(ctx context.Context) error {
 	if _, ok := c.headers["X-CSRF-TOKEN"]; ok {
 		return nil
 	}
-	return c.initCSRF()
+	return c.initCSRF(ctx)
 }

@@ -1,12 +1,12 @@
 package az
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/GuitaristRin/DACreator/internal/model"
@@ -37,17 +37,25 @@ func roundID(seq int) int {
 }
 
 // postJSON 带重试的 POST JSON，返回解析后的响应对象。
-func (c *Client) postJSON(url string, payload map[string]any) (map[string]any, error) {
+// 取消 ctx 可中断请求与重试等待。
+func (c *Client) postJSON(ctx context.Context, url string, payload map[string]any) (map[string]any, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("编码请求: %w", err)
 	}
 	var lastErr error
 	for retry := 0; retry < c.maxRetry; retry++ {
-		if retry > 0 {
-			time.Sleep(time.Duration(retry) * time.Second)
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(body)))
+		if retry > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(retry) * time.Second):
+			}
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -79,11 +87,16 @@ func (c *Client) postJSON(url string, payload map[string]any) (map[string]any, e
 	return nil, lastErr
 }
 
+// maxBoardPages 是 fetchPaged 的防御性翻页上限：正常由服务器 pagination.last_page
+// 终止翻页，此上限仅在端点异常（last_page 失真）时兜底，避免无限请求。
+// 可在测试中临时调小。
+var maxBoardPages = 500
+
 // fetchPaged 逐页请求端点，直到 match 命中或翻完 last_page。
 // 返回命中的 item 与其全国排名（按页内位置计算）。
-func (c *Client) fetchPaged(url string, makePayload func(page int) map[string]any, match func(item map[string]any) bool) (map[string]any, int, error) {
-	for page := 1; ; page++ {
-		data, err := c.postJSON(url, makePayload(page))
+func (c *Client) fetchPaged(ctx context.Context, url string, makePayload func(page int) map[string]any, match func(item map[string]any) bool) (map[string]any, int, error) {
+	for page := 1; page <= maxBoardPages; page++ {
+		data, err := c.postJSON(ctx, url, makePayload(page))
 		if err != nil {
 			return nil, 0, err
 		}
@@ -105,6 +118,7 @@ func (c *Client) fetchPaged(url string, makePayload func(page int) map[string]an
 			return nil, 0, errNotFound
 		}
 	}
+	return nil, 0, errNotFound
 }
 
 var errNotFound = fmt.Errorf("未找到匹配记录")
@@ -132,8 +146,8 @@ func (c *Client) usernameMatches(rawName any) bool {
 }
 
 // RoundInfo 查询用户在指定回合（1-4）的分数与排名。
-func (c *Client) RoundInfo(roundSeq int, rep Reporter) (point, rank int, err error) {
-	if err := c.ensureCSRF(); err != nil {
+func (c *Client) RoundInfo(ctx context.Context, roundSeq int, rep Reporter) (point, rank int, err error) {
+	if err := c.ensureCSRF(ctx); err != nil {
 		return 0, 0, err
 	}
 	if rep == nil {
@@ -142,7 +156,7 @@ func (c *Client) RoundInfo(roundSeq int, rep Reporter) (point, rank int, err err
 	id := roundID(roundSeq)
 	rep.Log("info", fmt.Sprintf("查询第 %d 回合排名（round_id=%d）", roundSeq, id))
 
-	item, rankPos, err := c.fetchPaged(c.RoundURL,
+	item, rankPos, err := c.fetchPaged(ctx, c.RoundURL,
 		func(page int) map[string]any { return map[string]any{"page": page, "round_id": id} },
 		func(item map[string]any) bool { return c.usernameMatches(subMap(item, "userinfo")["username"]) },
 	)
@@ -153,15 +167,15 @@ func (c *Client) RoundInfo(roundSeq int, rep Reporter) (point, rank int, err err
 }
 
 // PrideInfo 查询用户在当前赛季的名声值与排名。
-func (c *Client) PrideInfo(rep Reporter) (value, rank int, err error) {
-	if err := c.ensureCSRF(); err != nil {
+func (c *Client) PrideInfo(ctx context.Context, rep Reporter) (value, rank int, err error) {
+	if err := c.ensureCSRF(ctx); err != nil {
 		return 0, 0, err
 	}
 	if rep == nil {
 		rep = nopReporter{}
 	}
 
-	item, rankPos, err := c.fetchPaged(c.PrideURL,
+	item, rankPos, err := c.fetchPaged(ctx, c.PrideURL,
 		func(page int) map[string]any { return map[string]any{"page": page, "season": c.season} },
 		func(item map[string]any) bool { return c.usernameMatches(subMap(item, "userinfo")["username"]) },
 	)
@@ -172,8 +186,8 @@ func (c *Client) PrideInfo(rep Reporter) (value, rank int, err error) {
 }
 
 // TeamInfo 按车队名查询车队的分数、联赛等级与排名。
-func (c *Client) TeamInfo(teamName string, roundSeq int, rep Reporter) (score int, level string, rank int, err error) {
-	if err := c.ensureCSRF(); err != nil {
+func (c *Client) TeamInfo(ctx context.Context, teamName string, roundSeq int, rep Reporter) (score int, level string, rank int, err error) {
+	if err := c.ensureCSRF(ctx); err != nil {
 		return 0, "", 0, err
 	}
 	if rep == nil {
@@ -187,7 +201,7 @@ func (c *Client) TeamInfo(teamName string, roundSeq int, rep Reporter) (score in
 
 	// 与用户名一致做 NFKC 归一化精确匹配，容忍全角/半角差异
 	target := norm.NFKC.String(teamName)
-	item, rankPos, err := c.fetchPaged(c.TeamURL,
+	item, rankPos, err := c.fetchPaged(ctx, c.TeamURL,
 		func(page int) map[string]any { return map[string]any{"page": page, "round_id": id} },
 		func(item map[string]any) bool {
 			name, _ := subMap(item, "teaminfo")["team_name"].(string)
@@ -233,17 +247,17 @@ func (c *Client) FetchCardData(ctx context.Context, cfgTeamName string, cfgRound
 	}
 	data.Records = records
 
-	if pt, rk, err := c.RoundInfo(cfgRound, rep); err != nil {
+	if pt, rk, err := c.RoundInfo(ctx, cfgRound, rep); err != nil {
 		rep.Log("warning", "回合信息获取失败："+err.Error())
 	} else {
 		data.RoundScore, data.RoundRank = pt, rk
 	}
-	if v, rk, err := c.PrideInfo(rep); err != nil {
+	if v, rk, err := c.PrideInfo(ctx, rep); err != nil {
 		rep.Log("warning", "名声信息获取失败："+err.Error())
 	} else {
 		data.PrideValue, data.PrideRank = v, rk
 	}
-	if s, lv, rk, err := c.TeamInfo(cfgTeamName, cfgRound, rep); err != nil {
+	if s, lv, rk, err := c.TeamInfo(ctx, cfgTeamName, cfgRound, rep); err != nil {
 		rep.Log("warning", "车队信息获取失败："+err.Error())
 	} else {
 		data.TeamScore, data.TeamLevel, data.TeamRank = s, lv, rk

@@ -3,9 +3,11 @@ package az
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
 
@@ -74,7 +76,7 @@ func roundItem(name string, point int) string {
 
 func TestRoundInfoAcrossPages(t *testing.T) {
 	_, c := cardTestServer(t)
-	point, rank, err := c.RoundInfo(1, nil)
+	point, rank, err := c.RoundInfo(context.Background(), 1, nil)
 	if err != nil {
 		t.Fatalf("查询失败：%v", err)
 	}
@@ -89,7 +91,7 @@ func TestRoundInfoAcrossPages(t *testing.T) {
 
 func TestPrideInfo(t *testing.T) {
 	_, c := cardTestServer(t)
-	value, rank, err := c.PrideInfo(nil)
+	value, rank, err := c.PrideInfo(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("查询失败：%v", err)
 	}
@@ -100,14 +102,14 @@ func TestPrideInfo(t *testing.T) {
 
 func TestTeamInfo(t *testing.T) {
 	_, c := cardTestServer(t)
-	score, level, rank, err := c.TeamInfo("Project D", 1, nil)
+	score, level, rank, err := c.TeamInfo(context.Background(), "Project D", 1, nil)
 	if err != nil {
 		t.Fatalf("查询失败：%v", err)
 	}
 	if score != 567 || level != "GOLD" || rank != 1 {
 		t.Errorf("车队信息不符：%d/%s/%d", score, level, rank)
 	}
-	if _, _, _, err := c.TeamInfo("不存在的车队", 1, nil); err == nil {
+	if _, _, _, err := c.TeamInfo(context.Background(), "不存在的车队", 1, nil); err == nil {
 		t.Error("未命中车队应报错")
 	}
 }
@@ -115,9 +117,40 @@ func TestTeamInfo(t *testing.T) {
 func TestTeamInfoNFKCName(t *testing.T) {
 	_, c := cardTestServer(t)
 	// 配置里写全角字符也应命中（NFKC 归一化后与服务器车队名一致）
-	_, _, _, err := c.TeamInfo("Ｐｒｏｊｅｃｔ　Ｄ", 1, nil)
+	_, _, _, err := c.TeamInfo(context.Background(), "Ｐｒｏｊｅｃｔ　Ｄ", 1, nil)
 	if err != nil {
 		t.Fatalf("全角车队名应命中：%v", err)
+	}
+}
+
+func TestFetchPagedStopsAtPageCap(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ranking", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(csrfHTMLNameFirst))
+	})
+	var pages atomic.Int32
+	mux.HandleFunc("POST /ranking/pride", func(w http.ResponseWriter, _ *http.Request) {
+		pages.Add(1)
+		// 永远未命中且 last_page 失真为极大值：验证防御性翻页上限兜底
+		fmt.Fprint(w, `{"list":[{"pride_point":1,"userinfo":{"username":"别人"}}],"pagination":{"per_page":15,"last_page":99999}}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	c := NewClient("Rin", 5)
+	c.WebURL = srv.URL + "/ranking"
+	c.PrideURL = srv.URL + "/ranking/pride"
+
+	orig := maxBoardPages
+	maxBoardPages = 3
+	defer func() { maxBoardPages = orig }()
+
+	_, _, err := c.PrideInfo(context.Background(), nil)
+	if !errors.Is(err, errNotFound) {
+		t.Fatalf("超过翻页上限应返回 errNotFound，实际：%v", err)
+	}
+	if n := pages.Load(); n != 3 {
+		t.Errorf("应在第 %d 页停止，实际请求 %d 页", maxBoardPages, n)
 	}
 }
 

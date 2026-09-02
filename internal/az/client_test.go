@@ -81,7 +81,7 @@ func TestSearchCourseFiltersAndMaps(t *testing.T) {
 		w.Write([]byte(searchFixture))
 	})
 
-	records, err := c.SearchCourse(0)
+	records, err := c.SearchCourse(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("搜索失败：%v", err)
 	}
@@ -107,7 +107,7 @@ func TestSearchCourseUnknownCarFallsBack(t *testing.T) {
 	_, c := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"list":[{"course_id":999,"style_car_id":"404","goal_time":1,"play_dt":"2026/01/01","eval_id":99,"rank":null,"userinfo":{"username":"Rin"}}],"carStyles":{}}`))
 	})
-	records, err := c.SearchCourse(0)
+	records, err := c.SearchCourse(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("搜索失败：%v", err)
 	}
@@ -128,7 +128,7 @@ func TestSearchCourseRetriesOnServerError(t *testing.T) {
 	})
 	c.maxRetry = 3
 	// 重试间隔在测试里会真实 sleep（1s+2s），可接受；若嫌慢可缩短
-	records, err := c.SearchCourse(0)
+	records, err := c.SearchCourse(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("重试后应成功：%v", err)
 	}
@@ -181,5 +181,26 @@ func TestCrawlAllNoRecords(t *testing.T) {
 	_, err := c.CrawlAll(context.Background(), nil, 1)
 	if !errors.Is(err, ErrNoRecords) {
 		t.Fatalf("应返回 ErrNoRecords，实际：%v", err)
+	}
+}
+
+func TestCrawlAllRespectsCancelledContext(t *testing.T) {
+	orig := TargetCourses
+	TargetCourses = []int{0, 2}
+	defer func() { TargetCourses = orig }()
+
+	_, c := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("取消后不应再发出搜索请求")
+		w.Write([]byte(`{"list":[],"carStyles":{}}`))
+	})
+	// 先取到 CSRF 再取消：验证取消能阻止后续搜索请求并向上传播
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := c.ensureCSRF(ctx); err != nil {
+		t.Fatalf("预取 CSRF 失败：%v", err)
+	}
+	cancel()
+	_, err := c.CrawlAll(ctx, nil, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("取消后应返回 context.Canceled，实际：%v", err)
 	}
 }
