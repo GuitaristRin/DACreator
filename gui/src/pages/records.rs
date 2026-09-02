@@ -11,8 +11,6 @@ use crate::theme::colors;
 #[derive(Deserialize, Clone, Debug)]
 pub struct HistoryRecord {
     #[serde(default)]
-    pub id: i64,
-    #[serde(default)]
     pub course: String,
     #[serde(default)]
     pub direction: String,
@@ -28,8 +26,6 @@ pub struct HistoryRecord {
     pub record_date: String,
     #[serde(default)]
     pub created_at: String,
-    #[serde(default)]
-    pub source: String,
 }
 
 #[derive(Deserialize)]
