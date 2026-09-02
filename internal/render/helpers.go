@@ -17,8 +17,13 @@ import (
 
 var pngEncoder = png.Encoder{}
 
-// newFace 解析字体文件并创建指定像素大小的字型。
-func newFace(path string, pixels int) (font.Face, error) {
+// fontRepo 只解析一次字体文件，按需创建多尺寸字型，供一次渲染内的多个字号复用。
+type fontRepo struct {
+	parsed *opentype.Font
+}
+
+// newFontRepo 读取并解析字体文件。
+func newFontRepo(path string) (*fontRepo, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("读取字体 %s: %w", path, err)
@@ -27,13 +32,18 @@ func newFace(path string, pixels int) (font.Face, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析字体 %s: %w", path, err)
 	}
-	face, err := opentype.NewFace(f, &opentype.FaceOptions{
+	return &fontRepo{parsed: f}, nil
+}
+
+// face 创建指定像素大小的字型，调用方负责 Close。
+func (r *fontRepo) face(pixels int) (font.Face, error) {
+	face, err := opentype.NewFace(r.parsed, &opentype.FaceOptions{
 		Size:    float64(pixels),
 		DPI:     72,
 		Hinting: font.HintingFull,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("创建字型 %s: %w", path, err)
+		return nil, fmt.Errorf("创建 %dpx 字型: %w", pixels, err)
 	}
 	return face, nil
 }

@@ -149,13 +149,17 @@ func RenderCard(in CardInput, cfg CardConfig) (image.Image, error) {
 	canvas := image.NewRGBA(tpl.Bounds())
 	xdraw.Draw(canvas, canvas.Bounds(), tpl, tpl.Bounds().Min, xdraw.Src)
 
-	// 各角色的字号（与旧版一致）
-	faces := map[string]font.Face{}
+	// 单次解析字体，各角色尺寸复用（与旧版一致）
+	repo, err := newFontRepo(cfg.FontPath)
+	if err != nil {
+		return nil, err
+	}
+	faces := make(map[string]font.Face, 9)
 	for name, size := range map[string]int{
 		"player": 72, "location": 48, "store": 48, "track": 28,
 		"season": 72, "score": 56, "team": 56, "teamscore": 48, "pride": 38,
 	} {
-		f, err := newFace(cfg.FontPath, size)
+		f, err := repo.face(size)
 		if err != nil {
 			return nil, err
 		}

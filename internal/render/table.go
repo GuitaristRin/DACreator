@@ -73,12 +73,16 @@ var RankImgFiles = map[string]string{
 
 // RenderTable 渲染成绩表格图片。
 func RenderTable(records []model.Record, cfg Config) (image.Image, error) {
-	face, err := newFace(cfg.FontPath, cfg.FontSize*cfg.Scale)
+	repo, err := newFontRepo(cfg.FontPath)
+	if err != nil {
+		return nil, err
+	}
+	face, err := repo.face(cfg.FontSize * cfg.Scale)
 	if err != nil {
 		return nil, err
 	}
 	defer face.Close()
-	headerFace, err := newFace(cfg.FontPath, 14*cfg.Scale)
+	headerFace, err := repo.face(14 * cfg.Scale)
 	if err != nil {
 		return nil, err
 	}
