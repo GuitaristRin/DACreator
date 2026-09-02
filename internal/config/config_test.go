@@ -14,12 +14,12 @@ func TestImportLegacyDat(t *testing.T) {
 	}{
 		{
 			name: "GUI 写出的标准格式",
-			dat: "ID = 高橋リンタ\nREGION = 関東\nCITY = 東京\nSTORE = ゲームセンター\nTEAM = Project D\nSEASON = 5\nROUND = 4\nVERSION = 2.1.2\n",
+			dat:  "ID = 高橋リンタ\nREGION = 関東\nCITY = 東京\nSTORE = ゲームセンター\nTEAM = Project D\nSEASON = 5\nROUND = 4\nVERSION = 2.1.2\n",
 			want: Config{ID: "高橋リンタ", Region: "関東", City: "東京", Store: "ゲームセンター", Team: "Project D", Season: 5, Round: 4},
 		},
 		{
 			name: "旧模板 LOCALE 键与无空格等号",
-			dat: "ID = 你的ID\nTEAM = 你的车队名\nSTORE = 你的店铺名\nLOCALE = 店铺所在地区\nCITY = 店铺所在城市\nSEASON = 5\nROUND = 4\nVERSION =2.1.1\n",
+			dat:  "ID = 你的ID\nTEAM = 你的车队名\nSTORE = 你的店铺名\nLOCALE = 店铺所在地区\nCITY = 店铺所在城市\nSEASON = 5\nROUND = 4\nVERSION =2.1.1\n",
 			want: Config{ID: "你的ID", Region: "店铺所在地区", City: "店铺所在城市", Store: "你的店铺名", Team: "你的车队名", Season: 5, Round: 4},
 		},
 		{
@@ -63,9 +63,9 @@ func TestImportLegacyDatFileMissing(t *testing.T) {
 }
 
 func TestConfigRoundTrip(t *testing.T) {
-	t.Setenv("APPDATA", t.TempDir())          // Windows
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())  // Linux
-	t.Setenv("HOME", t.TempDir())             // macOS 兜底
+	t.Setenv("APPDATA", t.TempDir())         // Windows
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // Linux
+	t.Setenv("HOME", t.TempDir())            // macOS 兜底
 
 	want := Config{ID: "rin", Region: "関東", City: "東京", Store: "店", Team: "D", Season: 6, Round: 2}
 	if err := Save(want); err != nil {

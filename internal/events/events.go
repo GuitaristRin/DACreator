@@ -28,17 +28,17 @@ const (
 
 // Event 是单条事件。
 type Event struct {
-	Type   string `json:"type"`
-	Stage  string `json:"stage,omitempty"`  // progress：crawl / render / save / card
-	Pct    int    `json:"pct,omitempty"`    // progress：0-100
-	Detail string `json:"detail,omitempty"` // progress：人读细节
-	Level  string `json:"level,omitempty"`  // log：级别
-	Msg    string `json:"msg,omitempty"`    // log / error：消息
-	Code   string `json:"code,omitempty"`   // error：network / config / io / parse
-	CSVPath string `json:"csv_path,omitempty"` // result
-	PNGPath string `json:"png_path,omitempty"` // result
-	Records int    `json:"records,omitempty"`  // result
-	ElapsedMs int64 `json:"elapsed_ms,omitempty"` // result
+	Type      string `json:"type"`
+	Stage     string `json:"stage,omitempty"`      // progress：crawl / render / save / card
+	Pct       int    `json:"pct,omitempty"`        // progress：0-100
+	Detail    string `json:"detail,omitempty"`     // progress：人读细节
+	Level     string `json:"level,omitempty"`      // log：级别
+	Msg       string `json:"msg,omitempty"`        // log / error：消息
+	Code      string `json:"code,omitempty"`       // error：network / config / io / parse
+	CSVPath   string `json:"csv_path,omitempty"`   // result
+	PNGPath   string `json:"png_path,omitempty"`   // result
+	Records   int    `json:"records,omitempty"`    // result
+	ElapsedMs int64  `json:"elapsed_ms,omitempty"` // result
 }
 
 // Emitter 把事件写到输出流：JSON 模式逐行输出事件，文本模式输出人读日志。
