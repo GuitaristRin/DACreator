@@ -81,7 +81,7 @@ scripts/build.ps1 [-Version 3.0.0]
 ## 注意事项
 
 1. 等级与排名以 ArcadeZone 服务器返回为准；`assets/rank.csv` 仅供成绩卡展示参考。
-2. 回合/车队接口的 `round_id` 映射随官方赛季调整，更新赛季后如失效请提 Issue。
+2. 回合 ID 从排行榜页面内嵌的官方映射（`roundsBySeason`）动态解析，官方调整赛季/回合后自动跟随；仅当页面不可用或结构大改时回退到内置映射（Season 5 实测值），此时日志会给出警告。
 3. 内置字体为 Noto Sans CJK（OFL 许可）。
 4. 历史数据库永久保存，可手动备份或删除 `%APPDATA%/DACreator/history.db` 重置。
 
