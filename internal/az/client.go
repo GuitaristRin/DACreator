@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"regexp"
 	"strconv"
 	"strings"
@@ -54,6 +55,7 @@ type Client struct {
 
 // NewClient 创建客户端；username 需已做 NFKC 归一化（config.Load 已保证）。
 func NewClient(username string, season int) *Client {
+	jar, _ := cookiejar.New(nil)
 	return &Client{
 		WebURL:   DefaultWebURL,
 		APIURL:   DefaultAPIURL,
@@ -62,7 +64,7 @@ func NewClient(username string, season int) *Client {
 		TeamURL:  DefaultTeamURL,
 		username: username,
 		season:   season,
-		http:     &http.Client{Timeout: 30 * time.Second},
+		http:     &http.Client{Timeout: 30 * time.Second, Jar: jar},
 		headers: map[string]string{
 			"User-Agent":   defaultUA,
 			"Content-Type": "application/json",
