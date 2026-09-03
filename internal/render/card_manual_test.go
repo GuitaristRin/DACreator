@@ -47,7 +47,8 @@ func TestManualRecordCardOutput(t *testing.T) {
 		{Course: "秋名", Direction: "下坡", TimeMs: 152300, Rank: "MASTER+", National: "3"},
 		{Course: "妙義", Direction: "上坡", TimeMs: 168999, Rank: "MASTER", National: "12"},
 		{Course: "赤城", Direction: "逆时针", TimeMs: 185420, Rank: "EXPERT", National: "255"},
-		{Course: "碓冰", Direction: "顺时针", TimeMs: 179010, Rank: "EXPERT", National: "331"},
+		// 易赛道 PRO：全国排名 400 仍应挤掉难赛道 EXPERT 412（相对位置优先）
+		{Course: "箱根", Direction: "下坡", TimeMs: 159010, Rank: "PROFESSIONAL", National: "400"},
 		{Course: "椿线", Direction: "下坡", TimeMs: 199010, Rank: "EXPERT", National: "412"},
 		{Course: "秋名雪", Direction: "下坡", TimeMs: 205123, Rank: "SPECIALIST", National: "12345"},
 		{Course: "筑波", Direction: "去路", TimeMs: 158442, Rank: "SPECIALIST", National: "672"},

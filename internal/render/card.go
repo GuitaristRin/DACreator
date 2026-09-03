@@ -7,8 +7,10 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 	"path/filepath"
 	"sort"
+	"strconv"
 
 	"github.com/GuitaristRin/DACreator/internal/model"
 
@@ -94,8 +96,12 @@ var teamImageMap = map[string]string{
 	"GOLD": "gold.png", "PLATINUM": "platinum.png", "MASTER": "master.png",
 }
 
-// SelectTopRecords 选取用于成绩卡的 Top5 记录：按等级从高到低、同等级按时间升序，
-// 逐等级填满 5 条为止（旧版超额时随机抽样，v3 改为取前 N 条以保证可复现）。
+// SelectTopRecords 选取用于成绩卡的精选记录：按全国排名升序取前 limit 条。
+// 等级阈值不随赛道难度校准——易赛道 PRO 随手可得，难赛道不研究到高熟练度连
+// EXPERT 都难拿——因此等级不能作为跨赛道的第一排序键；全国排名才是难度与
+// 竞争共同决定的相对位置，等级仅作同排名时的次级键，时间作最后兜底。
+// 缺失全国排名的记录（旧 6 列 CSV）排在末尾，组内按等级从高到低、时间升序。
+// （旧版超额时随机抽样，v3 改为取前 N 条以保证可复现。）
 func SelectTopRecords(records []model.Record, limit int) []model.Record {
 	rankVal := func(r model.Record) int {
 		for i, name := range rankOrder {
@@ -108,36 +114,37 @@ func SelectTopRecords(records []model.Record, limit int) []model.Record {
 	sorted := make([]model.Record, len(records))
 	copy(sorted, records)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		vi, vj := rankVal(sorted[i]), rankVal(sorted[j])
-		if vi != vj {
+		ni, nj := nationalKey(sorted[i]), nationalKey(sorted[j])
+		if ni != nj {
+			return ni < nj
+		}
+		if vi, vj := rankVal(sorted[i]), rankVal(sorted[j]); vi != vj {
 			return vi > vj
 		}
 		return sorted[i].TimeMs < sorted[j].TimeMs
 	})
-
-	// 按等级分组（保持排序后顺序）
-	grouped := make(map[string][]model.Record)
-	var order []string
-	for _, r := range sorted {
-		if _, seen := grouped[r.Rank]; !seen {
-			order = append(order, r.Rank)
-		}
-		grouped[r.Rank] = append(grouped[r.Rank], r)
+	if len(sorted) > limit {
+		sorted = sorted[:limit]
 	}
+	return sorted
+}
 
-	var selected []model.Record
-	remaining := limit
-	for i := len(rankOrder) - 1; i >= 0 && remaining > 0; i-- {
-		items := grouped[rankOrder[i]]
-		if len(items) > remaining {
-			selected = append(selected, items[:remaining]...)
-			remaining = 0
-		} else {
-			selected = append(selected, items...)
-			remaining -= len(items)
-		}
+// nationalKey 把全国排名转为可比较的整数键：取数字前缀（兼容「255位」写法），
+// 缺失或无法解析时排在所有有效排名之后。
+func nationalKey(r model.Record) int {
+	s := r.National
+	end := 0
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
 	}
-	return selected
+	if end == 0 {
+		return math.MaxInt
+	}
+	n, err := strconv.Atoi(s[:end])
+	if err != nil {
+		return math.MaxInt
+	}
+	return n
 }
 
 // RenderCard 渲染成绩卡并返回图片。
