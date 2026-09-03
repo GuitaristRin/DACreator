@@ -23,13 +23,14 @@ type Config struct {
 	ColWidths    []int // 7 列宽度
 	Scale        int
 
-	BgColor         color.Color
-	HeaderColor     color.Color
-	HeaderTextColor color.Color
-	RowEvenColor    color.Color
-	RowOddColor     color.Color
-	TextColor       color.Color
-	BorderColor     color.Color
+	BgColor          color.Color
+	HeaderColor      color.Color
+	HeaderTextColor  color.Color
+	RowEvenColor     color.Color
+	RowOddColor      color.Color
+	TextColor        color.Color
+	BorderColor      color.Color
+	PlaceholderColor color.Color // 空值占位符（如缺全国順位的「—」）颜色
 
 	RankImgScale float64 // 徽章高度占行高的比例
 	RankImgFiles map[string]string
@@ -46,13 +47,14 @@ func DefaultConfig(assetsDir string) Config {
 		ColWidths:    []int{80, 60, 80, 100, 280, 90, 80},
 		Scale:        2,
 
-		BgColor:         color.RGBA{255, 255, 255, 255},
-		HeaderColor:     color.RGBA{44, 62, 80, 255},
-		HeaderTextColor: color.RGBA{255, 255, 255, 255},
-		RowEvenColor:    color.RGBA{245, 245, 245, 255},
-		RowOddColor:     color.RGBA{255, 255, 255, 255},
-		TextColor:       color.RGBA{0, 0, 0, 255},
-		BorderColor:     color.RGBA{200, 200, 200, 255},
+		BgColor:          color.RGBA{255, 255, 255, 255},
+		HeaderColor:      color.RGBA{44, 62, 80, 255},
+		HeaderTextColor:  color.RGBA{255, 255, 255, 255},
+		RowEvenColor:     color.RGBA{245, 245, 245, 255},
+		RowOddColor:      color.RGBA{255, 255, 255, 255},
+		TextColor:        color.RGBA{0, 0, 0, 255},
+		BorderColor:      color.RGBA{200, 200, 200, 255},
+		PlaceholderColor: color.RGBA{170, 170, 170, 255},
 
 		RankImgScale: 0.8,
 		RankImgFiles: RankImgFiles,
@@ -114,7 +116,12 @@ func RenderTable(records []model.Record, cfg Config) (image.Image, error) {
 	outlineRect(img, image.Rect(margin, y, totalW-margin, y+cfg.HeaderHeight*scale), cfg.BorderColor)
 	x := margin
 	for i, col := range model.Columns {
-		d.text(col, headerFace, x+5*scale, y, cfg.HeaderHeight*scale, cfg.HeaderTextColor)
+		if col == model.ColNational {
+			// 表头与数据列保持同侧对齐
+			d.textRight(col, headerFace, x+colWidths[i]*scale-5*scale, y, cfg.HeaderHeight*scale, cfg.HeaderTextColor)
+		} else {
+			d.text(col, headerFace, x+5*scale, y, cfg.HeaderHeight*scale, cfg.HeaderTextColor)
+		}
 		x += colWidths[i] * scale
 	}
 	y += cfg.HeaderHeight * scale
@@ -128,28 +135,46 @@ func RenderTable(records []model.Record, cfg Config) (image.Image, error) {
 		fillRect(img, image.Rect(margin, y, totalW-margin, y+cfg.RowHeight*scale), rowColor)
 		outlineRect(img, image.Rect(margin, y, totalW-margin, y+cfg.RowHeight*scale), cfg.BorderColor)
 
+		nationalText := rec.National
+		nationalEmpty := nationalText == ""
+		if nationalEmpty {
+			nationalText = "—" // 旧 6 列格式无全国順位，占位以区别于漏渲染
+		}
+
 		x = margin
 		row := []struct {
 			text  string
 			badge string
+			right bool
+			gray  bool
 		}{
-			{rec.Course, ""},
-			{rec.Direction, ""},
-			{model.FormatRaceTime(rec.TimeMs), ""},
-			{"", rec.Rank},
-			{rec.Car, ""},
-			{rec.National, ""},
-			{rec.Date, ""},
+			{rec.Course, "", false, false},
+			{rec.Direction, "", false, false},
+			{model.FormatRaceTime(rec.TimeMs), "", false, false},
+			{"", rec.Rank, false, false},
+			{rec.Car, "", false, false},
+			{nationalText, "", true, nationalEmpty},
+			{rec.Date, "", false, false},
 		}
 		for i, cell := range row {
-			if cell.badge != "" {
+			switch {
+			case cell.badge != "":
 				if b := badges.get(cell.badge, cfg); b != nil {
 					drawCentered(img, b, image.Rect(x, y, x+colWidths[i]*scale, y+cfg.RowHeight*scale))
 				} else {
 					d.text(cell.badge, face, x+5*scale, y, cfg.RowHeight*scale, cfg.TextColor)
 				}
-			} else {
-				d.text(cell.text, face, x+5*scale, y, cfg.RowHeight*scale, cfg.TextColor)
+			case cell.right:
+				// 数字列右对齐：位数不同的排名也能对齐成列
+				v := fitText(cell.text, face, colWidths[i]*scale-10*scale)
+				c := cfg.TextColor
+				if cell.gray {
+					c = cfg.PlaceholderColor
+				}
+				d.textRight(v, face, x+colWidths[i]*scale-5*scale, y, cfg.RowHeight*scale, c)
+			default:
+				v := fitText(cell.text, face, colWidths[i]*scale-10*scale)
+				d.text(v, face, x+5*scale, y, cfg.RowHeight*scale, cfg.TextColor)
 			}
 			x += colWidths[i] * scale
 		}

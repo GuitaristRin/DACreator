@@ -3,7 +3,10 @@ package render
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"golang.org/x/image/font"
 
 	"github.com/GuitaristRin/DACreator/internal/model"
 )
@@ -75,4 +78,56 @@ func TestSavePNG(t *testing.T) {
 	if err != nil || st.Size() == 0 {
 		t.Fatalf("输出文件无效：%v", err)
 	}
+}
+
+func TestFitText(t *testing.T) {
+	face, err := newFontRepo(filepath.Join(testAssetsDir(t), "font", "NotoSansCJKsc-Bold.otf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := face.face(24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	measure := func(s string) int { return font.MeasureString(f, s).Ceil() }
+
+	cases := []struct {
+		name     string
+		text     string
+		maxWidth int
+		want     string
+	}{
+		{"宽度足够原样返回", "AE86", 500, "AE86"},
+		{"空串原样返回", "", 50, ""},
+		{"恰好放下", "AE86", measure("AE86"), "AE86"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fitText(tt.text, f, tt.maxWidth); got != tt.want {
+				t.Errorf("fitText(%q, %d) = %q，期望 %q", tt.text, tt.maxWidth, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("超长截断加省略号", func(t *testing.T) {
+		const max = 200
+		got := fitText("GT-R NISMO R35 [35GT-ABRR] 超长车型名测试", f, max)
+		if !strings.HasSuffix(got, "…") {
+			t.Fatalf("应以省略号结尾：%q", got)
+		}
+		if measure(got) > max {
+			t.Errorf("截断后仍超宽：%q（%d > %d）", got, measure(got), max)
+		}
+		if got == "…" {
+			t.Error("不应直接退化为单个省略号")
+		}
+	})
+
+	t.Run("宽度极端不足", func(t *testing.T) {
+		if got := fitText("AE86", f, measure("…")-1); got != "…" {
+			t.Errorf("极端宽度应只剩省略号：%q", got)
+		}
+	})
 }

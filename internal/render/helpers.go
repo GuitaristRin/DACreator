@@ -48,6 +48,21 @@ func (r *fontRepo) face(pixels int) (font.Face, error) {
 	return face, nil
 }
 
+// fitText 按像素宽度截断文本：超宽时裁掉尾部字符并追加省略号，保证不越出所在列。
+func fitText(s string, face font.Face, maxWidth int) string {
+	if s == "" || font.MeasureString(face, s).Ceil() <= maxWidth {
+		return s
+	}
+	r := []rune(s)
+	for i := len(r) - 1; i > 0; i-- {
+		candidate := string(r[:i]) + "…"
+		if font.MeasureString(face, candidate).Ceil() <= maxWidth {
+			return candidate
+		}
+	}
+	return "…"
+}
+
 // drawer 在 image 上以垂直居中方式绘制文本。
 type drawer struct {
 	img *image.RGBA
@@ -69,6 +84,15 @@ func (d *drawer) text(s string, face font.Face, x, cellTop, cellH int, c color.C
 		Dot:  fixed.P(x, baseline),
 	}
 	fd.DrawString(s)
+}
+
+// textRight 以右对齐方式绘制垂直居中文本（cellRight 为单元格右缘 x）。
+func (d *drawer) textRight(s string, face font.Face, cellRight, cellTop, cellH int, c color.Color) {
+	if s == "" {
+		return
+	}
+	w := font.MeasureString(face, s).Ceil()
+	d.text(s, face, cellRight-w, cellTop, cellH, c)
 }
 
 // badgeCache 按需加载并缩放等级徽章。
