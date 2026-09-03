@@ -55,7 +55,7 @@ func TestManualRecordCardOutput(t *testing.T) {
 	}
 	img, err := RenderRecordCard(RecordCardInput{
 		PlayerID: "高橋リンタ", TeamName: "Project D", TeamLevel: "GOLD",
-		Season: 5, Round: 4, Records: records,
+		Season: 5, Round: 4, RoundScore: 612, TeamScore: 4581, Records: records,
 	}, DefaultRecordCardConfig(filepath.Join("..", "..", "assets")))
 	if err != nil {
 		t.Fatal(err)

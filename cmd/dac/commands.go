@@ -199,7 +199,8 @@ func cmdRecordCard(args []string) error {
 	defer stop()
 
 	client := az.NewClient(cfg.ID, cfg.Season)
-	records, err := client.CrawlAll(ctx, emit, az.DefaultConcurrency)
+	// 记录卡与成绩卡共用数据通路：计时赛 + 回合/名声/车队（后两者仅取车队相关字段）
+	data, err := client.FetchCardData(ctx, cfg.Team, cfg.Round, emit)
 	if err != nil {
 		if errors.Is(err, az.ErrNoRecords) {
 			emit.Error("notfound", "未找到任何成绩记录：请检查用户名与赛季")
@@ -211,16 +212,6 @@ func cmdRecordCard(args []string) error {
 		}
 		emit.Error("network", err.Error())
 		return err
-	}
-
-	// 车队等级尽力而为：失败只记警告，不阻断出卡
-	teamLevel := ""
-	if cfg.Team != "" {
-		if _, level, _, err := client.TeamInfo(ctx, cfg.Team, cfg.Round, emit); err != nil {
-			emit.Log(events.LevelWarning, "车队信息获取失败："+err.Error())
-		} else {
-			teamLevel = level
-		}
 	}
 
 	emit.Progress("card", 80, "渲染记录卡")
@@ -239,8 +230,10 @@ func cmdRecordCard(args []string) error {
 	}
 	pngPath := filepath.Join(out, fmt.Sprintf("record_card_%s.png", imageTimestamp()))
 	img, err := render.RenderRecordCard(render.RecordCardInput{
-		PlayerID: cfg.ID, TeamName: cfg.Team, TeamLevel: teamLevel,
-		Season: cfg.Season, Round: cfg.Round, Records: records,
+		PlayerID: cfg.ID, TeamName: cfg.Team, TeamLevel: data.TeamLevel,
+		Season: cfg.Season, Round: cfg.Round,
+		RoundScore: data.RoundScore, TeamScore: data.TeamScore,
+		Records: data.Records,
 	}, render.DefaultRecordCardConfig(config.AssetsDir()))
 	if err != nil {
 		emit.Error("io", err.Error())
@@ -252,8 +245,8 @@ func cmdRecordCard(args []string) error {
 	}
 	emit.Log(events.LevelSuccess, "记录卡已保存："+pngPath)
 
-	insertHistory(emit, records, "recordcard")
-	emit.Result("", pngPath, len(records), time.Since(start))
+	insertHistory(emit, data.Records, "recordcard")
+	emit.Result("", pngPath, len(data.Records), time.Since(start))
 	return nil
 }
 
