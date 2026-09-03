@@ -83,6 +83,23 @@ func RankTally(records []model.Record) []RankCount {
 }
 
 // RenderRecordCard 渲染记录卡并返回图片。
+// 模板实测严格几何（1600×1200 画布）：
+// 左外框 x=70，中央竖直分隔线 x=688，右外框 x=1534。
+// 顶部标题栏下沿 y=208，卡片底框 y=1148。
+// 任何绘制坐标必须严格落在这些框线内部，留足内边距，严禁压线或出界。
+const (
+	tplLeftFrame  = 70
+	tplDividerX   = 688
+	tplRightFrame = 1534
+)
+
+// plateText 在左列铭牌分区内居中绘制文本，超宽时按实测框线截断。
+func plateText(canvas *image.RGBA, face font.Face, area rect4, text string, strokeW int) {
+	// 左右各留 20px 安全边距
+	maxW := (tplDividerX - 20) - (tplLeftFrame + 20)
+	cardText(canvas, face, area, fitText(text, face, maxW), cardWhite, cardBlack, strokeW)
+}
+
 func RenderRecordCard(in RecordCardInput, cfg RecordCardConfig) (image.Image, error) {
 	tpl, err := loadPNG(cfg.TemplatePath)
 	if err != nil {
@@ -97,9 +114,9 @@ func RenderRecordCard(in RecordCardInput, cfg RecordCardConfig) (image.Image, er
 	}
 	faces := make(map[string]font.Face, 9)
 	for name, size := range map[string]int{
-		"player": 72, "location": 48, "store": 48, "track": 28,
+		"player": 68, "location": 46, "store": 44, "track": 24,
 		"season": 72, "score": 56, "team": 56, "teamscore": 48,
-		"count": 30,
+		"count": 28,
 	} {
 		f, err := repo.face(size)
 		if err != nil {
@@ -109,15 +126,20 @@ func RenderRecordCard(in RecordCardInput, cfg RecordCardConfig) (image.Image, er
 		faces[name] = f
 	}
 
-	// ── 左列：铭牌三连 + 精选计时赛 Top5 ─────────────────────────────────
-	cardText(canvas, faces["player"], cardPlayerIDArea, in.PlayerID, cardWhite, cardBlack, 3)
-	cardText(canvas, faces["location"], cardLocationArea, in.TeamName, cardWhite, cardBlack, 2)
+	// ── 左列：铭牌三连（实测框线 [70, 688] 居中对齐）─────────────────────
+	platePlayerArea := area(tplLeftFrame, 208, tplDividerX, 368)
+	plateTeamArea := area(tplLeftFrame, 368, tplDividerX, 478)
+	plateLeagueArea := area(tplLeftFrame, 478, tplDividerX, 574)
+
+	plateText(canvas, faces["player"], platePlayerArea, in.PlayerID, 3)
+	plateText(canvas, faces["location"], plateTeamArea, in.TeamName, 2)
 	league := ""
 	if in.TeamName != "" && in.TeamLevel != "" {
 		league = in.TeamLevel + " LEAGUE"
 	}
-	cardText(canvas, faces["store"], cardStoreArea, league, cardWhite, cardBlack, 2)
+	plateText(canvas, faces["store"], plateLeagueArea, league, 2)
 
+	// 左下大区：精选计时赛 Top5（严格落在 [70, 688] 内部）
 	renderFeaturedRecords(canvas, faces, in.Records, cfg)
 
 	// ── 右列：赛季 / 回合分数 / 车队 / 等级徽章架 / 车队分数 ──────────────
@@ -138,75 +160,86 @@ func RenderRecordCard(in RecordCardInput, cfg RecordCardConfig) (image.Image, er
 	return canvas, nil
 }
 
-// renderFeaturedRecords 在左下大区绘制精选计时赛 Top5，行构图与成绩卡一致：
-// 等级徽章 + 「赛道 方向  时间」，宽度足够时自适应追加全国排名。
+// renderFeaturedRecords 在左下大区绘制精选计时赛 Top5。
+// 边界约束：左框 x=70，中隔线 x=688，可用宽度 618px。
+// 徽章起点放在 x=95（距左框 25px 留白），徽章宽 190，右侧文本区留 365px，永不压中线。
 func renderFeaturedRecords(canvas *image.RGBA, faces map[string]font.Face, records []model.Record, cfg RecordCardConfig) {
-	x1, y1 := cardRecordsArea[0], cardRecordsArea[1]
 	const (
-		badgeW    = 220
-		badgeH    = 56
-		spacing   = 48
-		textAvail = 440 // 徽章右侧的文本区宽度
+		startX     = 95  // 严格大于 tplLeftFrame(70)，留 25px 边距，徽章决不出框
+		startY     = 615 // y=574 横线下方留 41px 边距
+		badgeW     = 185
+		badgeH     = 46
+		rowPitch   = 100 // 5 行分布在 615..1115，底框在 y=1148
+		textGap    = 16
+		textRightX = tplDividerX - 20 // 668，距中线留 20px 安全间距
 	)
+	textStartX := startX + badgeW + textGap // 95 + 185 + 16 = 296
+	textAvail := textRightX - textStartX    // 668 - 296 = 372px
+
 	top := SelectTopRecords(records, 5)
 	for i, rec := range top {
-		rowY := y1 + 40 + i*(badgeH+spacing)
-		textX := x1 + 20
+		rowY := startY + i*rowPitch
 		if b := scaledBadge(cfg.RankImgDir, cardRankImageName(rec.Rank), badgeW, badgeH); b != nil {
-			draw.Draw(canvas, image.Rect(textX, rowY, textX+b.Bounds().Dx(), rowY+b.Bounds().Dy()), b, b.Bounds().Min, draw.Over)
-			textX += b.Bounds().Dx() + 20
+			// 徽章在 185x46 格内居中
+			bx := startX + (badgeW-b.Bounds().Dx())/2
+			by := rowY + (badgeH-b.Bounds().Dy())/2
+			draw.Draw(canvas, image.Rect(bx, by, bx+b.Bounds().Dx(), by+b.Bounds().Dy()), b, b.Bounds().Min, draw.Over)
 		} else {
 			_, th := textSize(faces["track"], rec.Rank)
-			drawStrokedTextAt(canvas, faces["track"], textX, rowY+(badgeH-th)/2, rec.Rank, cardBlack, cardWhite, 1)
-			textX += 250
+			drawStrokedTextAt(canvas, faces["track"], startX, rowY+(badgeH-th)/2, rec.Rank, cardBlack, cardWhite, 1)
 		}
 
-		track := truncateRunes(rec.Course+" "+rec.Direction, 25)
-		full := fmt.Sprintf("%s  %s", track, model.FormatRaceTime(rec.TimeMs))
+		track := rec.Course + " " + rec.Direction
+		timeStr := model.FormatRaceTime(rec.TimeMs)
+		full := fmt.Sprintf("%s %s", track, timeStr)
 		if rec.National != "" {
-			// 宽度足够才追加全国排名，避免挤压换行或越界
-			withNat := fmt.Sprintf("%s  全国%s位", full, rec.National)
+			withNat := fmt.Sprintf("%s 全国%s位", full, rec.National)
 			if font.MeasureString(faces["track"], withNat).Ceil() <= textAvail {
 				full = withNat
 			}
 		}
-		textY := rowY + badgeH/2 - 15
-		drawStrokedTextAt(canvas, faces["track"], textX, textY, full, cardBlack, cardWhite, 1)
+
+		_, th := textSize(faces["track"], full)
+		textY := rowY + (badgeH-th)/2
+		drawStrokedTextAt(canvas, faces["track"], textStartX, textY, fitText(full, faces["track"], textAvail), cardBlack, cardWhite, 1)
 	}
 }
 
-// renderRankTallyShelf 在右下荣誉区上部绘制等级徽章架：每行最多 4 枚，
-// 徽章居中、持有数居中于徽章下方；行区避让模板烙印的「TEAM 分数」标签。
+// renderRankTallyShelf 在右下荣誉区绘制等级徽章架：4 列网格。
+// 边界约束：中隔线 x=688，右外框 x=1534。
+// 区域限定在 x=725 .. 1495（宽 770px，左右各留 ~38px 安全边距，徽章决不出框）。
 func renderRankTallyShelf(canvas *image.RGBA, faces map[string]font.Face, records []model.Record, cfg RecordCardConfig) {
-	x1, y1, x2 := cardHonorArea[0], cardHonorArea[1], cardHonorArea[2]
 	const (
-		cols     = 4
-		badgeW   = 170
-		badgeH   = 48
-		cellH    = 140
-		shelfTop = 95 // 距荣誉区顶（避开所属 TEAM 行）
+		gridLeft  = 735
+		gridRight = 1490
+		gridTop   = 600
+		cols      = 4
+		cellH     = 135
+		badgeMaxW = 150
+		badgeMaxH = 42
 	)
 	tally := RankTally(records)
 	if len(tally) == 0 {
-		drawStrokedTextAt(canvas, faces["track"], x1+60, y1+shelfTop+10, "暂无成绩记录", cardBlack, cardWhite, 1)
+		drawStrokedTextAt(canvas, faces["track"], gridLeft+20, gridTop+20, "暂无成绩记录", cardBlack, cardWhite, 1)
 		return
 	}
-	cellW := (x2 - x1 - 40) / cols
+
+	cellW := (gridRight - gridLeft) / cols // ~188px
 	for i, rc := range tally {
-		cx := x1 + 20 + (i%cols)*cellW
-		cy := y1 + shelfTop + (i/cols)*cellH
+		cx := gridLeft + (i%cols)*cellW
+		cy := gridTop + (i/cols)*cellH
 		label := fmt.Sprintf("× %d", rc.Count)
-		if b := scaledBadge(cfg.RankImgDir, cardRankImageName(rc.Rank), badgeW, badgeH); b != nil {
+
+		if b := scaledBadge(cfg.RankImgDir, cardRankImageName(rc.Rank), badgeMaxW, badgeMaxH); b != nil {
 			bx := cx + (cellW-b.Bounds().Dx())/2
 			draw.Draw(canvas, image.Rect(bx, cy, bx+b.Bounds().Dx(), cy+b.Bounds().Dy()), b, b.Bounds().Min, draw.Over)
 			lw, lh := textSize(faces["count"], label)
-			drawStrokedTextAt(canvas, faces["count"], cx+(cellW-lw)/2, cy+badgeH+(44-lh)/2, label, cardBlack, cardWhite, 1)
+			drawStrokedTextAt(canvas, faces["count"], cx+(cellW-lw)/2, cy+badgeMaxH+(42-lh)/2, label, cardBlack, cardWhite, 1)
 		} else {
-			// 徽章缺失时以等级名文字兜底
 			rw, _ := textSize(faces["track"], rc.Rank)
-			drawStrokedTextAt(canvas, faces["track"], cx+(cellW-rw)/2, cy+8, rc.Rank, cardBlack, cardWhite, 1)
+			drawStrokedTextAt(canvas, faces["track"], cx+(cellW-rw)/2, cy+4, rc.Rank, cardBlack, cardWhite, 1)
 			lw, lh := textSize(faces["count"], label)
-			drawStrokedTextAt(canvas, faces["count"], cx+(cellW-lw)/2, cy+badgeH+(44-lh)/2, label, cardBlack, cardWhite, 1)
+			drawStrokedTextAt(canvas, faces["count"], cx+(cellW-lw)/2, cy+badgeMaxH+(42-lh)/2, label, cardBlack, cardWhite, 1)
 		}
 	}
 }
