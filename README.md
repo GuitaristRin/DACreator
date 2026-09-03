@@ -25,6 +25,7 @@ B 站演示视频：<https://www.bilibili.com/video/BV13SFWzTEnv/>
 - **成绩爬取**：并发抓取全部 48 条计时赛赛道，等级与全国排名取自服务器 `eval_id`（不再依赖本地推算）
 - **本地 CSV**：从既有成绩 CSV 生成表格（格式向下兼容旧版）
 - **成绩卡**：Top5 记录 + 回合分数 + 名声 + 车队信息一键出图
+- **记录卡**：玩家 ID + 车队 + 各等级持有统计 + 精选计时赛成绩的单页分享卡
 - **历史记录**：SQLite 自动去重入库，数据页按赛道筛选
 - **自动更新**：基于 GitHub Releases 检查新版本
 - **重名处理**：搜索结果按 NFKC 归一化精确过滤，同名玩家成绩全部保留
@@ -32,13 +33,14 @@ B 站演示视频：<https://www.bilibili.com/video/BV13SFWzTEnv/>
 ## 命令行
 
 ```bash
-dac crawl     [-u 用户名] [-s 赛季] [-d 图片目录] [--json]   # 爬取全部赛道
-dac localcsv  <成绩.csv> [-d 图片目录] [--json]              # 本地 CSV 生成表格
-dac card      [-d 图片目录] [--json]                        # 生成简报成绩卡
-dac history   [-c 赛道] [-n 条数] [--json]                  # 查询历史
-dac config    show | set --id 名称 … | import <Player_ID.dat>
-dac update    check                                         # 检查更新
-dac version   [--json]
+dac crawl      [-u 用户名] [-s 赛季] [-d 图片目录] [--json]   # 爬取全部赛道
+dac localcsv   <成绩.csv> [-d 图片目录] [--json]              # 本地 CSV 生成表格
+dac card       [-d 图片目录] [--json]                        # 生成简报成绩卡
+dac recordcard [-d 图片目录] [--json]                        # 生成记录卡（等级统计+精选成绩）
+dac history    [-c 赛道] [-n 条数] [--json]                  # 查询历史
+dac config     show | set --id 名称 … | import <Player_ID.dat>
+dac update     check                                         # 检查更新
+dac version    [--json]
 ```
 
 - `--json` 输出 JSON-lines 事件流（进度/日志/结果），供脚本或 GUI 消费；缺省为人读文本
