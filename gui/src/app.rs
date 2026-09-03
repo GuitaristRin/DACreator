@@ -185,6 +185,7 @@ impl DacApp {
                 )
             }
             HomeMode::Card => (vec!["card".to_owned(), "--json".to_owned()], "成绩卡"),
+            HomeMode::RecordCard => (vec!["recordcard".to_owned(), "--json".to_owned()], "记录卡"),
         };
         if let Some(dir) = self.out_dir.clone() {
             args.extend(["-d".to_owned(), dir]);
