@@ -64,6 +64,48 @@ func TestRenderTableMissingBadgeDir(t *testing.T) {
 	}
 }
 
+func TestRankTally(t *testing.T) {
+	cases := []struct {
+		name    string
+		records []model.Record
+		want    []RankCount
+	}{
+		{
+			"空记录",
+			nil,
+			nil,
+		},
+		{
+			"按等级从高到低且跳过零项",
+			[]model.Record{
+				{Rank: "ROOKIE"}, {Rank: "LEGEND"}, {Rank: "LEGEND"},
+				{Rank: "EXPERT"}, {Rank: "ROOKIE"}, {Rank: "ROOKIE"},
+			},
+			[]RankCount{{"LEGEND", 2}, {"EXPERT", 1}, {"ROOKIE", 3}},
+		},
+		{
+			"未知等级按首次出现顺序排在末尾",
+			[]model.Record{
+				{Rank: "未知评价"}, {Rank: "MASTER"}, {Rank: "未知评价"},
+			},
+			[]RankCount{{"MASTER", 1}, {"未知评价", 2}},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RankTally(tt.records)
+			if len(got) != len(tt.want) {
+				t.Fatalf("数量不符：got %v，want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("第 %d 项不符：got %+v，want %+v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSavePNG(t *testing.T) {
 	cfg := DefaultConfig(testAssetsDir(t))
 	img, err := RenderTable(sampleRecords(), cfg)

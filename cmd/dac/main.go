@@ -40,6 +40,8 @@ func main() {
 		err = cmdLocalCSV(os.Args[2:])
 	case "card":
 		err = cmdCard(os.Args[2:])
+	case "recordcard":
+		err = cmdRecordCard(os.Args[2:])
 	case "history":
 		err = cmdHistory(os.Args[2:])
 	case "config":

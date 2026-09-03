@@ -173,6 +173,90 @@ func cmdCard(args []string) error {
 	return nil
 }
 
+// cmdRecordCard 生成记录卡：玩家 ID、车队、等级持有统计与精选计时赛成绩。
+func cmdRecordCard(args []string) error {
+	fs := flag.NewFlagSet("recordcard", flag.ExitOnError)
+	outDir := fs.String("d", "", "记录卡输出目录（缺省保存到数据目录 raw/card）")
+	jsonMode := fs.Bool("json", false, "以 JSON-lines 事件流输出")
+	flags, _ := splitFlagArgs(args, "d")
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+
+	emit := events.NewEmitter(os.Stdout, *jsonMode)
+	start := time.Now()
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.ID == "" {
+		emit.Error("config", "尚未配置用户名：请运行 dac config set 或在 GUI 中设置")
+		return errors.New("尚未配置用户名")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	client := az.NewClient(cfg.ID, cfg.Season)
+	records, err := client.CrawlAll(ctx, emit, az.DefaultConcurrency)
+	if err != nil {
+		if errors.Is(err, az.ErrNoRecords) {
+			emit.Error("notfound", "未找到任何成绩记录：请检查用户名与赛季")
+			return errors.New("未找到任何成绩记录")
+		}
+		if ctx.Err() != nil {
+			emit.Error("cancel", "用户中断")
+			return errors.New("用户中断")
+		}
+		emit.Error("network", err.Error())
+		return err
+	}
+
+	// 车队等级尽力而为：失败只记警告，不阻断出卡
+	teamLevel := ""
+	if cfg.Team != "" {
+		if _, level, _, err := client.TeamInfo(ctx, cfg.Team, cfg.Round, emit); err != nil {
+			emit.Log(events.LevelWarning, "车队信息获取失败："+err.Error())
+		} else {
+			teamLevel = level
+		}
+	}
+
+	emit.Progress("card", 80, "渲染记录卡")
+	out := *outDir
+	if out == "" {
+		raw, err := rawDir()
+		if err != nil {
+			emit.Error("io", err.Error())
+			return err
+		}
+		out = filepath.Join(raw, "card")
+	}
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		emit.Error("io", err.Error())
+		return err
+	}
+	pngPath := filepath.Join(out, fmt.Sprintf("record_card_%s.png", imageTimestamp()))
+	img, err := render.RenderRecordCard(render.RecordCardInput{
+		PlayerID: cfg.ID, TeamName: cfg.Team, TeamLevel: teamLevel,
+		Season: cfg.Season, Round: cfg.Round, Records: records,
+	}, render.DefaultRecordCardConfig(config.AssetsDir()))
+	if err != nil {
+		emit.Error("io", err.Error())
+		return err
+	}
+	if err := render.SavePNG(img, pngPath); err != nil {
+		emit.Error("io", err.Error())
+		return err
+	}
+	emit.Log(events.LevelSuccess, "记录卡已保存："+pngPath)
+
+	insertHistory(emit, records, "recordcard")
+	emit.Result("", pngPath, len(records), time.Since(start))
+	return nil
+}
+
 func cmdLocalCSV(args []string) error {
 	fs := flag.NewFlagSet("localcsv", flag.ExitOnError)
 	outDir := fs.String("d", "", "表格图片输出目录（缺省只保存原始 CSV 到 raw）")
