@@ -14,6 +14,7 @@ const usage = `DACreator v3 引擎 —— 头文字D 激斗成绩工具
 
 用法：
   dac card      [-d 图片目录] [--json]                                     生成简报成绩卡
+  dac recordcard [-d 图片目录] [--json]                                    生成记录卡（等级统计+精选成绩）
   dac crawl     [-u 用户名] [-s 赛季] [-d 图片目录] [-c 并发数] [--json]   爬取全部赛道成绩
   dac localcsv  <成绩.csv> [-d 图片目录] [--json]                          本地 CSV 生成表格
   dac history   [-c 赛道] [-n 条数] [--json]                               查询历史记录
@@ -37,6 +38,8 @@ func main() {
 		err = cmdCrawl(os.Args[2:])
 	case "localcsv":
 		err = cmdLocalCSV(os.Args[2:])
+	case "card":
+		err = cmdCard(os.Args[2:])
 	case "history":
 		err = cmdHistory(os.Args[2:])
 	case "config":
